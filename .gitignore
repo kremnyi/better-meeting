@@ -1,0 +1,43 @@
+# --- better-meeting outputs ---
+# per-video working folders (default --out-root)
+runs/
+# legacy single output folder
+bm-out/
+out/
+*-bm/
+
+# --- media (keep large binaries out of git) ---
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.wav
+*.mp3
+*.m4a
+
+# --- secrets / local notes (never commit) ---
+text.md
+.env
+*.secret
+*.key
+credentials*
+proxies*.txt
+
+# --- python ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- os / editors ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
