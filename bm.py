@@ -12,8 +12,11 @@ better-meeting — CLI
        Віддаєш теку своїй нейронці — і спілкуєшся «з відео».
 
 Точкові запити для зовнішньої моделі (результат — у stdout):
-  bm frame VIDEO -t MM:SS   один кадр на таймкоді
-  bm ocr   VIDEO -t MM:SS   OCR кадру на таймкоді (або: bm ocr image.jpg)
+  bm frame VIDEO -t MM:SS                          один кадр на таймкоді
+  bm ocr   VIDEO -t MM:SS                          OCR кадру (або: bm ocr image.jpg)
+  bm transcript VIDEO --from MM:SS --to MM:SS      транскрипт проміжку; --lang,
+      -O key=value — будь-які whisper-параметри; кеш за повним набором
+      параметрів (--force перерахує)
 
 Пайплайн `bm extract` (реалізація — у пакеті better_meeting/):
   1. audio      ffmpeg -> 16kHz mono wav                   better_meeting/audio.py

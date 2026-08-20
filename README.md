@@ -119,7 +119,7 @@ Run `bm --help` for the full list.
 
 ## Point queries — tooling for agents
 
-Besides the full pipeline, `bm` has two point commands so an LLM agent can drill into a specific moment without re-running anything. Both print their result to stdout (logs go to stderr):
+Besides the full pipeline, `bm` has point commands so an LLM agent can drill into a specific moment without re-running anything. All print their result to stdout (logs go to stderr):
 
 ```bash
 # grab one frame at a timecode (prints the file path)
@@ -131,9 +131,18 @@ bm ocr meeting.mp4 -t 12:40
 
 # OCR an existing image (e.g. a screenshot from artifacts/screens/)
 bm ocr runs/meeting/artifacts/screens/007_00-14-10.jpg
+
+# re-transcribe a time range in a specific language
+bm transcript meeting.mp4 --from 10:00 --to 12:30 --lang en
+
+# ...with any whisper option passed through, and JSON output
+bm transcript meeting.mp4 --from 10:00 --to 12:30 --lang uk \
+    -O temperature=0.2 -O initial_prompt="назви сервісів, реліз, стейджинг" --json
 ```
 
-Timecodes accept `SS`, `MM:SS`, or `HH:MM:SS`. The typical agent loop: read `timeline.md`, spot an interesting moment, pull the exact frame with `bm frame`, look at it (or re-read it with `bm ocr --backend tesseract` as a second opinion). Frames land in the video's own folder under `frames_at/`; use `-o out.jpg` to override.
+Timecodes accept `SS`, `MM:SS`, or `HH:MM:SS`. The typical agent loop: read `timeline.md`, spot a suspicious stretch, pull the exact frame with `bm frame`, or re-run just that stretch with `bm transcript` — a different language, a domain `initial_prompt` to fix mangled terms, whatever Whisper accepts via repeatable `-O key=value` (values parse as JSON).
+
+`bm transcript` results are **cached by their full parameter set** (range + language + model + backend + options) under `runs/<name>/transcripts_at/` — repeating the same query returns instantly; `--force` recomputes. Frames land under `frames_at/`; use `-o out.jpg` to override.
 
 ### Examples
 

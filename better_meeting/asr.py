@@ -11,6 +11,8 @@
 другій мові не змушує переганяти першу. Кожен сегмент має поле "lang".
 """
 
+import hashlib
+import json
 import platform
 from pathlib import Path
 
@@ -51,6 +53,40 @@ def _public(s: dict) -> dict:
     return {"start": s["start"], "end": s["end"], "text": s["text"], "lang": s["lang"]}
 
 
+def transcribe_range(video: Path, start: float, end, lang, model: str, backend: str,
+                     work: Path, opts: dict, force: bool) -> list:
+    """Точковий запит: транскрипт проміжку [start, end) з довільними whisper-опціями.
+
+    Кешується за повним ключем параметрів (проміжок + мова + модель + бекенд +
+    опції) у work/transcripts_at/ — той самий запит повертається з кешу миттєво,
+    force перераховує."""
+    if backend == "auto":
+        backend = "mlx" if platform.system() == "Darwin" else "faster"
+    key = {"from": round(start, 3), "to": round(end, 3) if end is not None else None,
+           "lang": lang, "model": model, "backend": backend, "opts": opts}
+    digest = hashlib.sha1(
+        json.dumps(key, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:10]
+    cdir = work / "transcripts_at"
+    cache = cdir / f"{int(start):05d}-{'end' if end is None else f'{int(end):05d}'}_{lang or 'auto'}_{digest}.json"
+
+    if cache.exists() and not force:
+        log(f"з кешу: {cache.name}")
+        return load(cache)["segments"]
+
+    from .audio import extract_audio
+    cdir.mkdir(parents=True, exist_ok=True)
+    clip = cdir / f"{digest}.wav"
+    extract_audio(video, clip, start=start,
+                  duration=None if end is None else end - start)
+    segments = [_public(s) for s in _run(clip, lang, model, backend, opts)]
+    clip.unlink()
+    for s in segments:
+        s["start"] += start
+        s["end"] += start
+    save(cache, {"params": key, "segments": segments})
+    return segments
+
+
 def _merge(passes: list) -> list:
     """Жадібне покриття таймлайну: у кожній точці беремо сегмент з найкращим
     avg_logprob серед тих, що її накривають. Сегменти-галюцинації (стандартна
@@ -78,28 +114,25 @@ def _merge(passes: list) -> list:
     return out
 
 
-def _run(wav: Path, lang: str, model: str, backend: str) -> list:
+def _run(wav: Path, lang, model: str, backend: str, opts: dict | None = None) -> list:
     if backend == "mlx":
-        return _run_mlx(wav, lang, model)
-    return _run_faster(wav, lang, model)
+        return _run_mlx(wav, lang, model, opts or {})
+    return _run_faster(wav, lang, model, opts or {})
 
 
-def _run_mlx(wav: Path, lang: str, model: str) -> list:
+def _run_mlx(wav: Path, lang, model: str, opts: dict) -> list:
     try:
         import mlx_whisper  # type: ignore
     except ImportError:
         from .utils import die
         die("немає mlx-whisper. `pip install mlx-whisper` або --asr-backend faster")
     repo = model if "/" in model else f"mlx-community/whisper-{model}"
-    res = mlx_whisper.transcribe(
-        str(wav),
-        path_or_hf_repo=repo,
-        language=lang,
-        condition_on_previous_text=False,
-    )
+    kwargs = {"language": lang, "condition_on_previous_text": False, **opts}
+    res = mlx_whisper.transcribe(str(wav), path_or_hf_repo=repo, **kwargs)
+    detected = lang or res.get("language")
     return [
         {"start": float(s["start"]), "end": float(s["end"]),
-         "text": s["text"].strip(), "lang": lang,
+         "text": s["text"].strip(), "lang": detected,
          "score": float(s.get("avg_logprob", 0.0)),
          "nospeech": float(s.get("no_speech_prob", 0.0))}
         for s in res["segments"] if s["text"].strip()
@@ -109,7 +142,7 @@ def _run_mlx(wav: Path, lang: str, model: str) -> list:
 _FASTER_CACHE = {}
 
 
-def _run_faster(wav: Path, lang: str, model: str) -> list:
+def _run_faster(wav: Path, lang, model: str, opts: dict) -> list:
     try:
         from faster_whisper import WhisperModel  # type: ignore
     except ImportError:
@@ -117,15 +150,13 @@ def _run_faster(wav: Path, lang: str, model: str) -> list:
         die("немає faster-whisper. `pip install faster-whisper`")
     if model not in _FASTER_CACHE:
         _FASTER_CACHE[model] = WhisperModel(model, device="auto", compute_type="int8")
-    segs, _ = _FASTER_CACHE[model].transcribe(
-        str(wav),
-        language=lang,
-        vad_filter=True,
-        condition_on_previous_text=False,
-    )
+    kwargs = {"language": lang, "vad_filter": True,
+              "condition_on_previous_text": False, **opts}
+    segs, info = _FASTER_CACHE[model].transcribe(str(wav), **kwargs)
+    detected = lang or info.language
     return [
         {"start": float(s.start), "end": float(s.end),
-         "text": s.text.strip(), "lang": lang,
+         "text": s.text.strip(), "lang": detected,
          "score": float(s.avg_logprob), "nospeech": float(s.no_speech_prob)}
         for s in segs if s.text.strip()
     ]

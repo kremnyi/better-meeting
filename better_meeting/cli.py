@@ -1,25 +1,30 @@
 """CLI: розбір аргументів і запуск.
 
 Підкоманди:
-  extract  повний пайплайн: відео -> runs/<ім'я>/artifacts/  (дефолт: `bm video.mp4`)
-  frame    точковий запит: один кадр на заданому таймкоді
-  ocr      точковий запит: OCR кадру відео на таймкоді або готового зображення
+  extract     повний пайплайн: відео -> runs/<ім'я>/artifacts/  (дефолт: `bm video.mp4`)
+  frame       точковий запит: один кадр на заданому таймкоді
+  ocr         точковий запит: OCR кадру відео на таймкоді або готового зображення
+  transcript  точковий запит: транскрипт проміжку --from..--to заданою мовою,
+              з прокиданням будь-яких whisper-параметрів (-O key=value);
+              кешується за параметрами — повторний запит миттєвий (--force перерахує)
 
-`frame` і `ocr` — інструментарій для зовнішньої моделі: побачила в timeline.md
-цікавий момент — дістала кадр чи перечитала текст, не переганяючи весь пайплайн.
-Дані (шлях до кадру / розпізнаний текст) друкуються в stdout, лог — у stderr.
+Точкові запити — інструментарій для зовнішньої моделі: побачила в timeline.md
+цікавий момент — дістала кадр, перечитала текст чи перегнала шматок транскрипту
+іншими параметрами, не переганяючи весь пайплайн.
+Дані друкуються в stdout, лог — у stderr.
 """
 
 import argparse
+import json
 import platform
 import sys
 from pathlib import Path
 
 from .pipeline import run_pipeline
-from .utils import die, parse_ts, ts_file
+from .utils import die, parse_ts, ts, ts_file
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".tiff", ".bmp"}
-COMMANDS = {"extract", "frame", "ocr"}
+COMMANDS = {"extract", "frame", "ocr", "transcript"}
 
 
 def _default_ocr_backend() -> str:
@@ -80,6 +85,26 @@ def build_parser() -> argparse.ArgumentParser:
     pf.add_argument("--out-root", type=Path, default=Path("runs"))
     pf.add_argument("--width", type=int, default=1920)
 
+    pt = sub.add_parser("transcript",
+                        help="транскрипт проміжку відео (кешується за параметрами)")
+    pt.add_argument("video", type=Path)
+    pt.add_argument("--from", dest="frm", default=None,
+                    help="таймкод початку: SS / MM:SS / HH:MM:SS (деф. початок)")
+    pt.add_argument("--to", dest="to", default=None,
+                    help="таймкод кінця (деф. кінець відео)")
+    pt.add_argument("--lang", default=None,
+                    help="мова (uk/ru/en/...); без неї — автодетекція whisper по кліпу")
+    pt.add_argument("--asr-model", default="large-v3-turbo")
+    pt.add_argument("--asr-backend", default="auto", choices=["auto", "mlx", "faster"])
+    pt.add_argument("-O", "--opt", action="append", default=[], metavar="KEY=VALUE",
+                    help="будь-який параметр whisper, можна кілька разів: "
+                         "-O temperature=0.2 -O initial_prompt='терміни проєкту' "
+                         "(значення парситься як JSON, інакше рядок)")
+    pt.add_argument("--json", action="store_true",
+                    help="сирі сегменти JSON замість рядків з таймкодами")
+    pt.add_argument("--out-root", type=Path, default=Path("runs"))
+    pt.add_argument("--force", action="store_true", help="ігнорувати кеш, перерахувати")
+
     po = sub.add_parser("ocr", help="OCR: кадр відео на таймкоді або готове зображення")
     po.add_argument("target", type=Path, help="відео (потрібен --at) або зображення")
     po.add_argument("-t", "--at", default=None, help="таймкод: SS / MM:SS / HH:MM:SS")
@@ -111,6 +136,34 @@ def cmd_frame(a) -> None:
     print(_grab_at(a.video, a.at, a.out, a.out_root, a.width))
 
 
+def cmd_transcript(a) -> None:
+    from .asr import transcribe_range
+    if not a.video.exists():
+        die(f"немає файлу {a.video}")
+    start = parse_ts(a.frm) if a.frm else 0.0
+    end = parse_ts(a.to) if a.to else None
+    if end is not None and end <= start:
+        die(f"--to ({a.to}) має бути пізніше за --from ({a.frm or '0'})")
+    opts = {}
+    for kv in a.opt:
+        if "=" not in kv:
+            die(f"очікую KEY=VALUE, отримав: {kv!r}")
+        k, v = kv.split("=", 1)
+        try:
+            opts[k] = json.loads(v)
+        except json.JSONDecodeError:
+            opts[k] = v
+    lang = None if a.lang in (None, "auto") else a.lang
+    segments = transcribe_range(a.video, start, end, lang, a.asr_model, a.asr_backend,
+                                a.out_root / a.video.stem, opts, a.force)
+    if a.json:
+        print(json.dumps(segments, ensure_ascii=False, indent=2))
+    else:
+        for s in segments:
+            tag = f" [{s['lang']}]" if s.get("lang") else ""
+            print(f"[{ts(s['start'])}]{tag} {s['text']}")
+
+
 def cmd_ocr(a) -> None:
     from .ocr import ocr_tesseract, ocr_vision
     if a.target.suffix.lower() in IMAGE_EXTS:
@@ -136,5 +189,7 @@ def main() -> None:
         run_pipeline(a)
     elif a.cmd == "frame":
         cmd_frame(a)
+    elif a.cmd == "transcript":
+        cmd_transcript(a)
     else:
         cmd_ocr(a)
