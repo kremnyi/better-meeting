@@ -68,6 +68,10 @@ def build_parser() -> argparse.ArgumentParser:
     px.add_argument("--ocr-lang", default="en-US,uk-UA")
     px.add_argument("--ocr-sim", type=float, default=0.97, help="поріг «той самий екран»")
 
+    px.add_argument("-O", "--opt", action="append", default=[], metavar="KEY=VALUE",
+                    help="будь-який параметр whisper для транскрипції, можна кілька: "
+                         "-O initial_prompt='терміни проєкту' -O temperature=0.2")
+
     px.add_argument("--pause", type=float, default=8.0,
                     help="від скількох секунд тиша йде в таймлайн")
 
@@ -126,6 +130,20 @@ def resolve_out(args) -> Path:
     return args.out if args.out is not None else args.out_root / args.video.stem
 
 
+def parse_opts(pairs: list) -> dict:
+    """-O key=value (повторюваний) -> dict; значення парсяться як JSON, інакше рядок."""
+    opts = {}
+    for kv in pairs:
+        if "=" not in kv:
+            die(f"очікую KEY=VALUE, отримав: {kv!r}")
+        k, v = kv.split("=", 1)
+        try:
+            opts[k] = json.loads(v)
+        except json.JSONDecodeError:
+            opts[k] = v
+    return opts
+
+
 def _grab_at(video: Path, at: str, out: Path | None, out_root: Path, width: int) -> Path:
     from .frames import grab_frame
     if not video.exists():
@@ -163,15 +181,7 @@ def cmd_transcript(a) -> None:
     end = parse_ts(a.to) if a.to else None
     if end is not None and end <= start:
         die(f"--to ({a.to}) має бути пізніше за --from ({a.frm or '0'})")
-    opts = {}
-    for kv in a.opt:
-        if "=" not in kv:
-            die(f"очікую KEY=VALUE, отримав: {kv!r}")
-        k, v = kv.split("=", 1)
-        try:
-            opts[k] = json.loads(v)
-        except json.JSONDecodeError:
-            opts[k] = v
+    opts = parse_opts(a.opt)
     lang = None if a.lang in (None, "auto") else a.lang
     segments = transcribe_range(a.video, start, end, lang, a.asr_model, a.asr_backend,
                                 a.out_root / a.video.stem, opts, a.force)
@@ -205,6 +215,7 @@ def main() -> None:
     a = build_parser().parse_args(argv)
     if a.cmd == "extract":
         a.out = resolve_out(a)
+        a.asr_opts = parse_opts(a.opt)
         run_pipeline(a)
     elif a.cmd in AGENTS_ALIASES:
         cmd_agents()

@@ -131,6 +131,7 @@ Common options:
 | `--frame-interval SEC` | `2.0`          | thumbnail sampling interval                          |
 | `--max-shots N`        | `30`           | how many screenshots to keep in `artifacts/`        |
 | `--ocr vision\|tesseract\|none` | `vision` on macOS | OCR backend                            |
+| `-O KEY=VALUE`         | —              | any Whisper option for transcription, repeatable (e.g. `-O initial_prompt="project terms"`) |
 
 Run `bm --help` for the full list.
 

@@ -31,9 +31,15 @@ def run_pipeline(a) -> None:
 
     duration = probe_duration(a.video)
 
-    if a.force or not f_transcript.exists():
+    f_meta = a.out / "transcript.meta.json"
+    meta = {"lang": a.lang, "langs": a.langs, "model": a.asr_model,
+            "backend": a.asr_backend, "opts": a.asr_opts}
+    stale = not f_meta.exists() or load(f_meta) != meta
+    if a.force or stale or not f_transcript.exists():
         save(f_transcript, transcribe(
-            wav, a.lang, a.langs.split(","), a.asr_model, a.asr_backend, a.out))
+            wav, a.lang, a.langs.split(","), a.asr_model, a.asr_backend,
+            a.out, a.asr_opts))
+        save(f_meta, meta)
     transcript = load(f_transcript)
     log(f"транскрипт: {len(transcript)} сегментів")
     if a.only == "transcribe":

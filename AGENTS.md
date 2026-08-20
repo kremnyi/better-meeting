@@ -25,6 +25,8 @@ Output goes to `runs/<video-name>/` — **one folder per video, never shared**. 
 
 Stages are cached in that folder; re-running the same video is cheap and resumes where it stopped. `--force` redoes everything. `--only audio|transcribe|frames|ocr|bundle` stops early.
 
+`extract` also accepts repeatable `-O key=value` — any Whisper option applied to every transcription pass (e.g. `-O initial_prompt="project terms"` to fix domain vocabulary). Changing `-O`, `--lang`, `--langs`, or the ASR model automatically invalidates the cached transcription — no `--force` needed.
+
 What lands where:
 
 ```
@@ -67,7 +69,7 @@ bm transcript meeting.mp4 --from 10:00 --to 12:30 --lang uk \
 `bm transcript` notes:
 - `-O key=value` (repeatable) passes **any** option through to Whisper; values parse as JSON. `initial_prompt` with domain terms is the main lever against mangled names.
 - Results cache by the full parameter set under `runs/<name>/transcripts_at/`; identical queries return instantly.
-- If the video already went through `extract` with the same model/backend and you pass no `-O`, the range is sliced from the pipeline's cache — no ASR run. Add any `-O`, or `--force`, to force a genuinely fresh decode.
+- If the video already went through `extract` with the same model/backend/`-O` options, the range is sliced from the pipeline's cache — no ASR run. Different options or `--force` give a genuinely fresh decode.
 - `--json` gives raw segments; default is `[HH:MM:SS] [lang] text` lines.
 
 ## Pitfalls
