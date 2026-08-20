@@ -1,5 +1,7 @@
 # better-meeting — agent guide
 
+> This guide is always available as `bm agents` wherever better-meeting is installed.
+
 better-meeting is a **pure extractor**: it pulls everything out of a meeting recording (timestamped speech transcript, on-screen text, key screenshots) into a self-contained folder. It contains **no LLM and never interprets** — *you* are the model that reads the extracted data and answers questions about the meeting ("talks to the video").
 
 ## Setup

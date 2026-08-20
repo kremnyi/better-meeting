@@ -1,6 +1,7 @@
 """CLI: розбір аргументів і запуск.
 
 Підкоманди:
+  agents      надрукувати AGENTS.md — інструкцію для LLM-агента, що керує bm
   extract     повний пайплайн: відео -> runs/<ім'я>/artifacts/  (дефолт: `bm video.mp4`)
   frame       точковий запит: один кадр на заданому таймкоді
   ocr         точковий запит: OCR кадру відео на таймкоді або готового зображення
@@ -24,7 +25,8 @@ from .pipeline import run_pipeline
 from .utils import die, parse_ts, ts, ts_file
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".tiff", ".bmp"}
-COMMANDS = {"extract", "frame", "ocr", "transcript"}
+AGENTS_ALIASES = {"agents", "agent-readme", "agent_readme"}
+COMMANDS = {"extract", "frame", "ocr", "transcript"} | AGENTS_ALIASES
 
 
 def _default_ocr_backend() -> str:
@@ -76,6 +78,9 @@ def build_parser() -> argparse.ArgumentParser:
     px.add_argument("--no-label", action="store_true", help="не випалювати таймкод на кадрі")
     px.add_argument("--sheet", type=int, default=0,
                     help="склеїти по N кадрів у сітку (0 = вимкнено)")
+
+    sub.add_parser("agents", aliases=["agent-readme", "agent_readme"],
+                   help="надрукувати інструкцію для LLM-агента (AGENTS.md)")
 
     pf = sub.add_parser("frame", help="один кадр відео на заданому таймкоді")
     pf.add_argument("video", type=Path)
@@ -136,6 +141,20 @@ def cmd_frame(a) -> None:
     print(_grab_at(a.video, a.at, a.out, a.out_root, a.width))
 
 
+def cmd_agents() -> None:
+    """AGENTS.md: у встановленому пакеті — з wheel, у клоні репо — з кореня."""
+    from importlib import resources
+    packaged = resources.files(__package__) / "AGENTS.md"
+    if packaged.is_file():
+        print(packaged.read_text(encoding="utf-8"), end="")
+        return
+    dev = Path(__file__).resolve().parent.parent / "AGENTS.md"
+    if dev.exists():
+        print(dev.read_text(encoding="utf-8"), end="")
+        return
+    die("AGENTS.md не знайдено ані в пакеті, ані поруч із кодом")
+
+
 def cmd_transcript(a) -> None:
     from .asr import transcribe_range
     if not a.video.exists():
@@ -187,6 +206,8 @@ def main() -> None:
     if a.cmd == "extract":
         a.out = resolve_out(a)
         run_pipeline(a)
+    elif a.cmd in AGENTS_ALIASES:
+        cmd_agents()
     elif a.cmd == "frame":
         cmd_frame(a)
     elif a.cmd == "transcript":

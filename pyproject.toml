@@ -37,3 +37,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["better_meeting"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"AGENTS.md" = "better_meeting/AGENTS.md"

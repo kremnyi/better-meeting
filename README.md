@@ -186,7 +186,7 @@ bm demo.mkv --out-root out --max-shots 50
 `artifacts/` is the whole interface:
 
 - **By hand**: open `artifacts/HOW-TO.md` — attach `timeline.md` + screenshots to a chat, paste `PROMPT.md`, then ask anything: "what did we decide about the release?", "what command did they run at 12:40?", "summarize each person's status".
-- **Via an agent**: point your agent at the `artifacts/` folder; `PROMPT.md` tells it what the materials are. The agent reads the files (and looks at the screenshots itself, if multimodal) and answers on top of them.
+- **Via an agent**: tell your agent — *"better-meeting is installed as `bm`; run `bm agents` and follow that guide to work with `<video>`"*. `bm agents` prints the full agent manual ([AGENTS.md](AGENTS.md)): how to extract, what the artifacts mean, and the point commands for drilling into moments. For the extracted materials themselves, `artifacts/PROMPT.md` defines the agent's role.
 
 ## License
 
