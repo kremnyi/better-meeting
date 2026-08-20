@@ -142,7 +142,11 @@ bm transcript meeting.mp4 --from 10:00 --to 12:30 --lang uk \
 
 Timecodes accept `SS`, `MM:SS`, or `HH:MM:SS`. The typical agent loop: read `timeline.md`, spot a suspicious stretch, pull the exact frame with `bm frame`, or re-run just that stretch with `bm transcript` — a different language, a domain `initial_prompt` to fix mangled terms, whatever Whisper accepts via repeatable `-O key=value` (values parse as JSON).
 
-`bm transcript` results are **cached by their full parameter set** (range + language + model + backend + options) under `runs/<name>/transcripts_at/` — repeating the same query returns instantly; `--force` recomputes. Frames land under `frames_at/`; use `-o out.jpg` to override.
+`bm transcript` results are **cached by their full parameter set** (range + language + model + backend + options) under `runs/<name>/transcripts_at/` — repeating the same query returns instantly; `--force` recomputes.
+
+It also **reuses the full pipeline's work**: if the video already went through `bm extract` with the same model and backend and you pass no `-O` options, the range is sliced straight out of the cached passes — a pinned `--lang` serves from that language's pass, no `--lang` serves from the merged transcript. No ASR runs at all. Any `-O` option, a different model, or `--force` triggers a real re-run.
+
+Frames land under `frames_at/`; use `-o out.jpg` to override.
 
 ### Examples
 

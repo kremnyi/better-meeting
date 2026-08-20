@@ -32,12 +32,12 @@ def transcribe(wav: Path, lang: str, langs: list, model: str, backend: str,
     for l in langs:
         cache = work / f"pass_{l}.json"
         if cache.exists():
-            segs = load(cache)
+            segs = load(cache)["segments"]
             log(f"прогін [{l}]: з кешу, {len(segs)} сегментів")
         else:
             log(f"прогін [{l}]")
             segs = _run(wav, l, model, backend)
-            save(cache, segs)
+            save(cache, {"model": model, "backend": backend, "segments": segs})
         passes.append(segs)
 
     merged = _merge(passes)
@@ -73,6 +73,12 @@ def transcribe_range(video: Path, start: float, end, lang, model: str, backend: 
         log(f"з кешу: {cache.name}")
         return load(cache)["segments"]
 
+    if not opts and not force:
+        reused = _slice_pipeline_cache(work, start, end, lang, model, backend)
+        if reused is not None:
+            log("з кешу повного прогону (extract)")
+            return reused
+
     from .audio import extract_audio
     cdir.mkdir(parents=True, exist_ok=True)
     clip = cdir / f"{digest}.wav"
@@ -85,6 +91,36 @@ def transcribe_range(video: Path, start: float, end, lang, model: str, backend: 
         s["end"] += start
     save(cache, {"params": key, "segments": segments})
     return segments
+
+
+def _slice_pipeline_cache(work: Path, start: float, end, lang, model: str, backend: str):
+    """Якщо відео вже пройшло повний extract тією ж моделлю/бекендом — діапазон
+    нарізається з готових результатів, без нового прогону ASR.
+
+    Конкретна мова -> зріз її pass_<lang>.json.
+    Без мови       -> зріз злитого transcript.json (перевіривши по будь-якому
+                      pass-файлу, що прогін був тією ж моделлю/бекендом).
+    Повертає None, якщо придатного кешу немає."""
+    def in_range(s):
+        return s["end"] > start and (end is None or s["start"] < end)
+
+    if lang is not None:
+        f = work / f"pass_{lang}.json"
+        if f.exists():
+            data = load(f)
+            if isinstance(data, dict) and data.get("model") == model \
+                    and data.get("backend") == backend:
+                return [_public(s) for s in data["segments"] if in_range(s)]
+        return None
+
+    f_transcript = work / "transcript.json"
+    if f_transcript.exists():
+        for f in work.glob("pass_*.json"):
+            data = load(f)
+            if isinstance(data, dict) and data.get("model") == model \
+                    and data.get("backend") == backend:
+                return [dict(s) for s in load(f_transcript) if in_range(s)]
+    return None
 
 
 def _merge(passes: list) -> list:
