@@ -71,11 +71,28 @@ The intro prompt the model receives (`PROMPT.md`) and the human guide (`HOW-TO.m
 
 Requires **Python 3.12+** and **ffmpeg/ffprobe** on your `PATH`.
 
+### As a global `bm` command (recommended)
+
+```bash
+uv tool install git+https://github.com/your-org/better-meeting.git
+bm meeting.mp4
+```
+
+On Linux/Windows add the faster-whisper extra:
+
+```bash
+uv tool install "better-meeting[faster] @ git+https://github.com/your-org/better-meeting.git"
+```
+
+Update later with `uv tool upgrade better-meeting`, remove with `uv tool uninstall better-meeting`.
+
+### From a clone (for development)
+
 ```bash
 git clone https://github.com/your-org/better-meeting.git
 cd better-meeting
 
-# with uv (recommended)
+# with uv
 uv sync
 uv run bm meeting.mp4
 
