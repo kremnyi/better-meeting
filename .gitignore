@@ -1,10 +1,7 @@
 # --- better-meeting outputs ---
 # per-video working folders (default --out-root)
 runs/
-# legacy single output folder
-bm-out/
 out/
-*-bm/
 
 # --- media (keep large binaries out of git) ---
 *.mp4
