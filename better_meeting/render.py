@@ -3,20 +3,30 @@
 from .utils import ts
 
 
+def _is_multilang(transcript: list) -> bool:
+    return len({s.get("lang") for s in transcript if s.get("lang")}) > 1
+
+
 def render_transcript(transcript: list) -> str:
+    multi = _is_multilang(transcript)
     lines = ["# Транскрипт", ""]
+    if multi:
+        lines[0] += "\n\nЗапис багатомовний — код мови вказано в кожному рядку."
     for seg in transcript:
-        lines.append(f"[{ts(seg['start'])}] {seg['text']}")
+        tag = f" [{seg['lang']}]" if multi and seg.get("lang") else ""
+        lines.append(f"[{ts(seg['start'])}]{tag} {seg['text']}")
     return "\n".join(lines) + "\n"
 
 
 def render_timeline(transcript: list, screen: list, shots_by_t: dict, pause_threshold: float) -> str:
+    multi = _is_multilang(transcript)
     items, prev_end = [], None
     for seg in transcript:
         if prev_end is not None and seg["start"] - prev_end >= pause_threshold:
             items.append((prev_end, "PAUSE",
                           f"[тиша {int(seg['start'] - prev_end)}с]"))
-        items.append((seg["start"], "SPEECH", seg["text"]))
+        tag = f"[{seg['lang']}] " if multi and seg.get("lang") else ""
+        items.append((seg["start"], "SPEECH", tag + seg["text"]))
         prev_end = seg["end"]
 
     for ev in screen:

@@ -18,12 +18,21 @@ The pipeline runs in cached stages — each writes into the video's working fold
 | # | Stage      | What happens                                                       |
 |---|------------|--------------------------------------------------------------------|
 | 1 | `audio`    | `ffmpeg` extracts a 16 kHz mono WAV                                 |
-| 2 | `transcribe` | Whisper (mlx on macOS / faster-whisper elsewhere) with timecodes |
+| 2 | `transcribe` | language detection across the whole recording, then Whisper (mlx on macOS / faster-whisper elsewhere) with timecodes |
 | 3 | `frames`   | sample thumbnails, keep only keyframes where the screen changed    |
 | 4 | `ocr`      | macOS Vision / tesseract reads each keyframe, diffs new on-screen text |
 | 5 | `bundle`   | assembles `artifacts/`: transcript, timeline, screenshots, prompt  |
 
 If OCR finds no readable text (low-res recording, or `--ocr none`), screenshots are still selected — evenly across the moments the screen changed — so a multimodal model can read them itself.
+
+### Multilingual meetings
+
+Whisper's built-in auto-detect samples only the **first 30 seconds** — a meeting that opens with English small talk and continues in Ukrainian would get transcribed wrong. `bm` instead probes short clips across the *entire* recording:
+
+- **One language detected** → a single pass with that language pinned (more stable than raw auto, including the classic uk/ru confusion).
+- **Several languages detected** → the recording is split into language-homogeneous spans, each transcribed with its own language, and the segments are stitched back by time. A single stray foreign phrase doesn't trigger a split — a language must hold a meaningful share of the probes.
+
+In multilingual recordings every transcript line carries its language tag (`[uk]`, `[en]`, `[ru]`), and `HOW-TO.md` reports the language share. Pin a single language with `--lang uk` to skip detection entirely.
 
 ## One folder per video
 
@@ -98,7 +107,7 @@ Common options:
 | `--out DIR`            | *(auto)*       | exact working folder (overrides per-video naming)   |
 | `--force`              | off            | redo every stage, ignore cache                      |
 | `--only STAGE`         | —              | stop after `audio`/`transcribe`/`frames`/`ocr`/`bundle` |
-| `--lang uk\|en\|auto`  | `auto`         | meeting language                                    |
+| `--lang uk\|en\|ru\|auto` | `auto`      | meeting language; `auto` handles multilingual recordings |
 | `--asr-model NAME`     | `large-v3-turbo` | Whisper model                                     |
 | `--frame-interval SEC` | `2.0`          | thumbnail sampling interval                          |
 | `--max-shots N`        | `30`           | how many screenshots to keep in `artifacts/`        |

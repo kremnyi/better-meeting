@@ -18,6 +18,7 @@ def run_pipeline(a) -> None:
 
     wav = a.out / "audio.wav"
     f_transcript = a.out / "transcript.json"
+    f_languages = a.out / "languages.json"
     f_keyframes = a.out / "keyframes.json"
     f_screen = a.out / "screen.json"
     d_thumbs = a.out / "thumbs"
@@ -29,8 +30,12 @@ def run_pipeline(a) -> None:
     if a.only == "audio":
         return
 
+    duration = probe_duration(a.video)
+
     if a.force or not f_transcript.exists():
-        save(f_transcript, transcribe(wav, a.lang, a.asr_model, a.asr_backend))
+        res = transcribe(wav, a.lang, a.asr_model, a.asr_backend, duration, a.out)
+        save(f_transcript, res["segments"])
+        save(f_languages, {"languages": res["languages"], "probes": res["probes"]})
     transcript = load(f_transcript)
     log(f"транскрипт: {len(transcript)} сегментів")
     if a.only == "transcribe":
@@ -56,7 +61,7 @@ def run_pipeline(a) -> None:
         return
 
     write_bundle(
-        art, transcript, screen, frames, probe_duration(a.video),
+        art, transcript, screen, frames, duration,
         max_shots=a.max_shots,
         shot_width=a.shot_width,
         shot_quality=a.shot_quality,

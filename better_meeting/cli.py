@@ -42,7 +42,9 @@ def build_parser() -> argparse.ArgumentParser:
     px.add_argument("--only", choices=["audio", "transcribe", "frames", "ocr", "bundle"],
                     help="зупинитись після етапу")
 
-    px.add_argument("--lang", default="auto", help="мова мітингу: uk / en / auto")
+    px.add_argument("--lang", default="auto",
+                    help="uk / en / ru / auto; auto пробить запис у кількох місцях і, "
+                         "якщо мов кілька, транскрибує кожен мовний відрізок своєю мовою")
     px.add_argument("--asr-backend", default="auto", choices=["auto", "mlx", "faster"])
     px.add_argument("--asr-model", default="large-v3-turbo")
 

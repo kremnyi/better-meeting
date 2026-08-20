@@ -61,8 +61,19 @@ def write_bundle(
     )
     (art / "PROMPT.md").write_text(PROMPT, encoding="utf-8")
 
+    by_lang = {}
+    for s in transcript:
+        if s.get("lang"):
+            by_lang[s["lang"]] = by_lang.get(s["lang"], 0.0) + (s["end"] - s["start"])
+    total_speech = sum(by_lang.values())
+    lang_line = ", ".join(
+        f"{l} {round(100 * v / total_speech)}%"
+        for l, v in sorted(by_lang.items(), key=lambda kv: -kv[1])
+    ) if total_speech else "невідомо"
+
     stats = "\n".join([
         f"- тривалість запису: {ts(duration)}",
+        f"- мови мовлення: {lang_line}",
         f"- сегментів мови: {len(transcript)}",
         f"- подій екрана: {len(screen)}",
         f"- скріншотів у теці: {len(shot_files)}",

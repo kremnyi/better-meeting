@@ -17,7 +17,9 @@ better-meeting — CLI
 
 Пайплайн `bm extract` (реалізація — у пакеті better_meeting/):
   1. audio      ffmpeg -> 16kHz mono wav                   better_meeting/audio.py
-  2. transcribe mlx-whisper / faster-whisper з таймкодами  better_meeting/asr.py
+  2. transcribe детекція мов(и) пробами по всьому запису;  better_meeting/asr.py
+                багатомовні міти ріжуться на мовні відрізки,
+                кожен транскрибується своєю мовою (mlx/faster-whisper)
   3. thumbs     ffmpeg -> дрібні кадри раз на N сек        better_meeting/frames.py
   4. keyframes  grid-diff -> тільки де екран змінився      better_meeting/frames.py
   5. frames     повнорозмірний кадр для відібраних тайм.   better_meeting/frames.py
