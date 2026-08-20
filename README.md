@@ -1,15 +1,17 @@
 # better-meeting
 
-Turn a screen-share meeting recording into a **self-contained folder of artifacts** you can drop straight into a chatbot: a timestamped transcript, a merged timeline, the handful of screenshots that actually matter, and a ready-to-paste prompt telling the model what to do with them.
+**Talk to your meeting recordings.** better-meeting is a pure extractor: it pulls *everything* out of a video — timestamped speech transcript, text that appeared on screen, key screenshots — into one self-contained folder. Hand that folder to any LLM as context, and ask it anything about the meeting.
 
-No cloud upload of the video, no manual scrubbing. Point it at an `.mp4`/`.mov`/`.mkv`, get back a folder.
+**There is no LLM inside the tool.** It never summarizes, never interprets. Extraction is local and deterministic; the understanding is done by whatever model *you* connect — a chatbot you paste files into, or an agent that picks the folder up as a plugin.
+
+Works for any kind of recording: a daily standup that's all talk, a technical demo full of screen changes, a workshop, a plain call.
 
 ```bash
 bm meeting.mp4
 # -> runs/meeting/artifacts/  (transcript.md, timeline.md, screens/, PROMPT.md, HOW-TO.md)
 ```
 
-## What it does
+## What it extracts
 
 The pipeline runs in cached stages — each writes into the video's working folder, and re-running skips finished stages (`--force` redoes them):
 
@@ -19,8 +21,9 @@ The pipeline runs in cached stages — each writes into the video's working fold
 | 2 | `transcribe` | Whisper (mlx on macOS / faster-whisper elsewhere) with timecodes |
 | 3 | `frames`   | sample thumbnails, keep only keyframes where the screen changed    |
 | 4 | `ocr`      | macOS Vision / tesseract reads each keyframe, diffs new on-screen text |
-| 5 | `bundle`   | assembles `artifacts/`: transcript, timeline, selected screenshots |
-| 6 | `summarize`| *(optional, `--summarize`)* runs the timeline through an LLM into `runbook.md` |
+| 5 | `bundle`   | assembles `artifacts/`: transcript, timeline, screenshots, prompt  |
+
+If OCR finds no readable text (low-res recording, or `--ocr none`), screenshots are still selected — evenly across the moments the screen changed — so a multimodal model can read them itself.
 
 ## One folder per video
 
@@ -35,12 +38,12 @@ runs/
 │   ├── transcript.json
 │   ├── keyframes.json
 │   ├── thumbs/ · frames/
-│   └── artifacts/          <- this is what you hand to the chatbot
-│       ├── transcript.md
-│       ├── timeline.md
+│   └── artifacts/          <- the interface: hand this folder to your LLM
+│       ├── transcript.md   — timestamped speech
+│       ├── timeline.md     — speech + new on-screen text + silences, merged
 │       ├── screens/ · screens_index.md
-│       ├── PROMPT.md
-│       └── HOW-TO.md
+│       ├── PROMPT.md       — intro instruction for the model
+│       └── HOW-TO.md       — drop-in guide for a human
 └── onboarding-call/
     └── ...
 ```
@@ -49,6 +52,10 @@ runs/
 - Pin an exact folder with `--out path/to/dir` (overrides the per-video naming).
 
 Because the folder name is derived from the video, re-running the **same** recording reuses its cache; a **different** recording lands in a **different** folder.
+
+## Prompts are plain text files
+
+The intro prompt the model receives (`PROMPT.md`) and the human guide (`HOW-TO.md`) live as editable text in [better_meeting/prompts/](better_meeting/prompts/) — tweak them for your workflow without touching code. They are deliberately task-agnostic: they describe what the materials *are*, not what to build from them. What you ask the model is up to you.
 
 ## Install
 
@@ -76,7 +83,6 @@ bm meeting.mp4
   pip install -e ".[faster]"   # faster-whisper ASR backend
   # + tesseract-ocr from your package manager, then run with: --ocr tesseract
   ```
-- **`--summarize`** uses the `claude` CLI by default, or `--llm litellm` with `pip install -e ".[litellm]"`.
 
 ## Usage
 
@@ -97,15 +103,17 @@ Common options:
 | `--frame-interval SEC` | `2.0`          | thumbnail sampling interval                          |
 | `--max-shots N`        | `30`           | how many screenshots to keep in `artifacts/`        |
 | `--ocr vision\|tesseract\|none` | `vision` on macOS | OCR backend                            |
-| `--summarize`          | off            | also produce `artifacts/runbook.md` via an LLM      |
 
 Run `bm --help` for the full list.
 
 ### Examples
 
 ```bash
-# Ukrainian meeting, produce a runbook too
-bm standup.mov --lang uk --summarize
+# Ukrainian meeting
+bm standup.mov --lang uk
+
+# low-res recording where OCR is hopeless — skip it, keep the screenshots
+bm call-360p.mp4 --ocr none
 
 # batch a directory — each file gets its own folder under runs/
 for f in recordings/*.mp4; do bm "$f"; done
@@ -114,9 +122,12 @@ for f in recordings/*.mp4; do bm "$f"; done
 bm demo.mkv --out-root out --max-shots 50
 ```
 
-## How to use the artifacts
+## Talking to the video
 
-Open `artifacts/HOW-TO.md` — it explains the drop-in flow. In short: paste `PROMPT.md` into the chatbot, attach `timeline.md` and the images from `screens/`, and let the model produce the notes / runbook / doc you need.
+`artifacts/` is the whole interface:
+
+- **By hand**: open `artifacts/HOW-TO.md` — attach `timeline.md` + screenshots to a chat, paste `PROMPT.md`, then ask anything: "what did we decide about the release?", "what command did they run at 12:40?", "summarize each person's status".
+- **Via an agent**: point your agent at the `artifacts/` folder; `PROMPT.md` tells it what the materials are. The agent reads the files (and looks at the screenshots itself, if multimodal) and answers on top of them.
 
 ## License
 

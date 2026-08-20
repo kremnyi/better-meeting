@@ -6,7 +6,7 @@ from pathlib import Path
 from .ocr import norm
 from .prompts import HOWTO, PROMPT
 from .render import render_timeline, render_transcript
-from .shots import make_sheets, select_shots, write_shot
+from .shots import fallback_shots, make_sheets, select_shots, write_shot
 from .utils import log, ts, ts_file
 
 
@@ -14,6 +14,7 @@ def write_bundle(
     art: Path,
     transcript: list,
     screen: list,
+    frames: list,
     duration: float,
     *,
     max_shots: int,
@@ -28,6 +29,10 @@ def write_bundle(
     (art / "screens").mkdir(parents=True, exist_ok=True)
 
     shots = select_shots(screen, duration, max_shots)
+    if not shots:
+        shots = fallback_shots(frames, max_shots)
+        if shots:
+            log("OCR-тексту немає — беру кадри рівномірно по часу")
     log(f"відібрано {len(shots)} скріншотів")
 
     shots_by_t, shot_files, index_rows = {}, [], []

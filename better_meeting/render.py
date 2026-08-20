@@ -15,7 +15,7 @@ def render_timeline(transcript: list, screen: list, shots_by_t: dict, pause_thre
     for seg in transcript:
         if prev_end is not None and seg["start"] - prev_end >= pause_threshold:
             items.append((prev_end, "PAUSE",
-                          f"[тиша {int(seg['start'] - prev_end)}с — швидше за все робота на екрані]"))
+                          f"[тиша {int(seg['start'] - prev_end)}с]"))
         items.append((seg["start"], "SPEECH", seg["text"]))
         prev_end = seg["end"]
 

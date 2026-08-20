@@ -29,6 +29,20 @@ def select_shots(screen: list, duration: float, max_shots: int) -> list:
     return sorted(chosen, key=lambda e: e["t"])
 
 
+def fallback_shots(frames: list, max_shots: int) -> list:
+    """Коли OCR вимкнений або не дав тексту (напр. низька роздільність запису):
+    рівномірний по часу відбір кадрів, де екран змінювався, — щоб дані з відео
+    все одно потрапили в теку, а їх читання лягло на зовнішню модель."""
+    if max_shots <= 0 or not frames:
+        return []
+    if len(frames) <= max_shots:
+        picked = frames
+    else:
+        step = len(frames) / max_shots
+        picked = [frames[int(i * step)] for i in range(max_shots)]
+    return [{"t": f["t"], "path": f["path"], "added": []} for f in picked]
+
+
 def _font(size: int):
     from PIL import ImageFont
     for p in [

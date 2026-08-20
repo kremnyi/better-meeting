@@ -7,7 +7,6 @@ from .audio import extract_audio
 from .bundle import write_bundle
 from .frames import extract_full_frames, pick_keyframes, sample_thumbs
 from .ocr import ocr_frames
-from .summarize import summarize
 from .utils import die, load, log, probe_duration, save
 
 
@@ -57,7 +56,7 @@ def run_pipeline(a) -> None:
         return
 
     write_bundle(
-        art, transcript, screen, probe_duration(a.video),
+        art, transcript, screen, frames, probe_duration(a.video),
         max_shots=a.max_shots,
         shot_width=a.shot_width,
         shot_quality=a.shot_quality,
@@ -65,10 +64,3 @@ def run_pipeline(a) -> None:
         sheet=a.sheet,
         pause=a.pause,
     )
-    if a.only == "bundle" or not a.summarize:
-        return
-
-    runbook = summarize((art / "timeline.md").read_text(encoding="utf-8"),
-                        a.llm, a.model, a.max_chars)
-    (art / "runbook.md").write_text(runbook, encoding="utf-8")
-    log(f"готово: {art / 'runbook.md'}")

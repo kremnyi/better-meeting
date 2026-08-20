@@ -1,7 +1,7 @@
 [project]
 name = "better-meeting"
-version = "0.2.0"
-description = "Turn a screen-share meeting recording into a self-contained folder of artifacts (transcript, timeline, selected screenshots, ready-to-paste prompt) you can drop into a chatbot."
+version = "0.3.0"
+description = "Extract everything from a meeting recording — timestamped transcript, on-screen text, key screenshots — into a self-contained per-video folder your LLM can use as full context to talk to the video. No LLM inside: pure extractor."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -23,8 +23,6 @@ dependencies = [
 [project.optional-dependencies]
 # Non-macOS ASR backend. Enable with: pip install "better-meeting[faster]"
 faster = ["faster-whisper>=1.0.0"]
-# Alternative summarizer backend (`--llm litellm`).
-litellm = ["litellm>=1.40.0"]
 
 [project.scripts]
 bm = "better_meeting.cli:main"

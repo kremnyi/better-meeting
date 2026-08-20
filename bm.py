@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-better-meeting v0.2 — CLI
+better-meeting — CLI
 
-Вхід: запис мітингу (mp4/mov/mkv).
+Чистий екстрактор: жодних мовних моделей всередині.
+
+Вхід: відеозапис зустрічі (mp4/mov/mkv) — дейлік, демо, воркшоп, будь-що.
 Вихід: для КОЖНОГО відео — власна тека runs/<ім'я відео>/ (корінь змінюється
        через --out-root, точна тека — через --out). Усередині artifacts/ —
-       транскрипт, таймлайн, відібрані скріншоти, промпт та інструкція
-       «що з цим робити». Все це руками кидається в чат-бота.
+       повний витяг даних: транскрипт з таймкодами, таймлайн, текст з екрана,
+       скріншоти, і PROMPT.md — вступна інструкція для зовнішньої моделі.
+       Віддаєш теку своїй нейронці — і спілкуєшся «з відео».
 
 Пайплайн (реалізація — у пакеті better_meeting/):
   1. audio      ffmpeg -> 16kHz mono wav                   better_meeting/audio.py
@@ -16,7 +19,6 @@ better-meeting v0.2 — CLI
   5. frames     повнорозмірний кадр для відібраних тайм.   better_meeting/frames.py
   6. ocr        macOS Vision / tesseract + діф рядків      better_meeting/ocr.py
   7. bundle     artifacts/: transcript, timeline, screens/ better_meeting/bundle.py
-  8. summarize  (опційно, --summarize) -> runbook.md       better_meeting/summarize.py
 
 Кожен етап кешується в робочій теці відео. --force щоб перезробити.
 """

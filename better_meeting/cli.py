@@ -40,11 +40,6 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--shot-quality", type=int, default=72)
     ap.add_argument("--no-label", action="store_true", help="не випалювати таймкод на кадрі")
     ap.add_argument("--sheet", type=int, default=0, help="склеїти по N кадрів у сітку (0 = вимкнено)")
-
-    ap.add_argument("--summarize", action="store_true", help="ще й прогнати через модель у runbook.md")
-    ap.add_argument("--llm", default="claude", choices=["claude", "litellm"])
-    ap.add_argument("--model", default="claude-sonnet-4-6")
-    ap.add_argument("--max-chars", type=int, default=120000)
     return ap
 
 
