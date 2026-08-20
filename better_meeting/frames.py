@@ -45,19 +45,24 @@ def pick_keyframes(thumbs: list, cell_delta: int, min_cells: int, max_gap: float
     return kept
 
 
-def extract_full_frames(video: Path, keyframes: list, out_dir: Path, width: int) -> list:
+def grab_frame(video: Path, t: float, path: Path, width: int) -> None:
+    """Один повнорозмірний кадр на таймкоді t."""
     need("ffmpeg")
+    run([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-ss", f"{t:.3f}", "-i", str(video),
+        "-frames:v", "1", "-vf", f"scale={width}:-2", "-q:v", "2",
+        str(path),
+    ])
+
+
+def extract_full_frames(video: Path, keyframes: list, out_dir: Path, width: int) -> list:
     out_dir.mkdir(parents=True, exist_ok=True)
     log(f"витягую {len(keyframes)} повних кадрів")
     out = []
     for i, kf in enumerate(keyframes):
         path = out_dir / f"{i:05d}_{int(kf['t']):06d}.jpg"
         if not path.exists():
-            run([
-                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-                "-ss", f"{kf['t']:.3f}", "-i", str(video),
-                "-frames:v", "1", "-vf", f"scale={width}:-2", "-q:v", "2",
-                str(path),
-            ])
+            grab_frame(video, kf["t"], path, width)
         out.append({"t": kf["t"], "path": str(path)})
     return out

@@ -106,6 +106,24 @@ Common options:
 
 Run `bm --help` for the full list.
 
+## Point queries — tooling for agents
+
+Besides the full pipeline, `bm` has two point commands so an LLM agent can drill into a specific moment without re-running anything. Both print their result to stdout (logs go to stderr):
+
+```bash
+# grab one frame at a timecode (prints the file path)
+bm frame meeting.mp4 -t 12:40
+# -> runs/meeting/frames_at/00-12-40.jpg
+
+# OCR a frame at a timecode (prints the recognized text)
+bm ocr meeting.mp4 -t 12:40
+
+# OCR an existing image (e.g. a screenshot from artifacts/screens/)
+bm ocr runs/meeting/artifacts/screens/007_00-14-10.jpg
+```
+
+Timecodes accept `SS`, `MM:SS`, or `HH:MM:SS`. The typical agent loop: read `timeline.md`, spot an interesting moment, pull the exact frame with `bm frame`, look at it (or re-read it with `bm ocr --backend tesseract` as a second opinion). Frames land in the video's own folder under `frames_at/`; use `-o out.jpg` to override.
+
 ### Examples
 
 ```bash

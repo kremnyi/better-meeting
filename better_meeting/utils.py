@@ -21,6 +21,20 @@ def ts_file(seconds: float) -> str:
     return f"{h:02d}-{m:02d}-{sec:02d}"
 
 
+def parse_ts(s: str) -> float:
+    """'75', '01:15', '1:01:15', '12.5' -> секунди."""
+    try:
+        nums = [float(p) for p in s.split(":")]
+    except ValueError:
+        nums = []
+    if not nums or len(nums) > 3:
+        die(f"незрозумілий таймкод: {s!r} (очікую SS, MM:SS або HH:MM:SS)")
+    t = 0.0
+    for n in nums:
+        t = t * 60 + n
+    return t
+
+
 def log(msg: str) -> None:
     print(f"[bm] {msg}", file=sys.stderr, flush=True)
 
@@ -31,7 +45,10 @@ def die(msg: str) -> None:
 
 
 def run(cmd: list, **kw) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, check=True, capture_output=True, text=True, **kw)
+    res = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    if res.returncode != 0:
+        die(f"`{cmd[0]}` впав: {res.stderr.strip()[-500:] or 'без повідомлення'}")
+    return res
 
 
 def need(binary: str) -> None:
