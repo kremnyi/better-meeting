@@ -28,8 +28,8 @@ faster = ["faster-whisper>=1.0.0"]
 bm = "better_meeting.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/your-org/better-meeting"
-Repository = "https://github.com/your-org/better-meeting"
+Homepage = "https://github.com/GivenFLY/better-meeting"
+Repository = "https://github.com/GivenFLY/better-meeting"
 
 [build-system]
 requires = ["hatchling"]

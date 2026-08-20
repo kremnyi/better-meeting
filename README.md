@@ -18,7 +18,7 @@ The pipeline runs in cached stages — each writes into the video's working fold
 | # | Stage      | What happens                                                       |
 |---|------------|--------------------------------------------------------------------|
 | 1 | `audio`    | `ffmpeg` extracts a 16 kHz mono WAV                                 |
-| 2 | `transcribe` | language detection across the whole recording, then Whisper (mlx on macOS / faster-whisper elsewhere) with timecodes |
+| 2 | `transcribe` | Whisper (mlx on macOS / faster-whisper elsewhere) with timecodes — one pass per candidate language, merged |
 | 3 | `frames`   | sample thumbnails, keep only keyframes where the screen changed    |
 | 4 | `ocr`      | macOS Vision / tesseract reads each keyframe, diffs new on-screen text |
 | 5 | `bundle`   | assembles `artifacts/`: transcript, timeline, screenshots, prompt  |
@@ -74,14 +74,14 @@ Requires **Python 3.12+** and **ffmpeg/ffprobe** on your `PATH`.
 ### As a global `bm` command (recommended)
 
 ```bash
-uv tool install git+https://github.com/your-org/better-meeting.git
+uv tool install git+https://github.com/GivenFLY/better-meeting.git
 bm meeting.mp4
 ```
 
 On Linux/Windows add the faster-whisper extra:
 
 ```bash
-uv tool install "better-meeting[faster] @ git+https://github.com/your-org/better-meeting.git"
+uv tool install "better-meeting[faster] @ git+https://github.com/GivenFLY/better-meeting.git"
 ```
 
 Update later with `uv tool upgrade better-meeting`, remove with `uv tool uninstall better-meeting`.
@@ -89,7 +89,7 @@ Update later with `uv tool upgrade better-meeting`, remove with `uv tool uninsta
 ### From a clone (for development)
 
 ```bash
-git clone https://github.com/your-org/better-meeting.git
+git clone https://github.com/GivenFLY/better-meeting.git
 cd better-meeting
 
 # with uv
@@ -114,10 +114,18 @@ bm meeting.mp4
 ## Usage
 
 ```bash
-bm RECORDING.mp4 [options]
+bm extract RECORDING.mp4 [options]   # `bm RECORDING.mp4` is the same thing
 ```
 
-Common options:
+| Command                  | What it does                                          |
+|--------------------------|-------------------------------------------------------|
+| `bm extract VIDEO`       | full pipeline → `runs/<name>/artifacts/`              |
+| `bm frame VIDEO -t T`    | one frame at a timecode                               |
+| `bm ocr VIDEO -t T`      | OCR a frame at a timecode (or an existing image)      |
+| `bm transcript VIDEO`    | transcript of a time range, any Whisper options       |
+| `bm agents`              | print the agent guide ([AGENTS.md](AGENTS.md))        |
+
+Common `extract` options:
 
 | Option                 | Default        | Meaning                                             |
 |------------------------|----------------|-----------------------------------------------------|
@@ -133,7 +141,26 @@ Common options:
 | `--ocr vision\|tesseract\|none` | `vision` on macOS | OCR backend                            |
 | `-O KEY=VALUE`         | —              | any Whisper option for transcription, repeatable (e.g. `-O initial_prompt="project terms"`) |
 
-Run `bm --help` for the full list.
+Run `bm --help` (or `bm extract --help`) for the full list.
+
+### Examples
+
+```bash
+# Ukrainian meeting
+bm standup.mov --lang uk
+
+# low-res recording where OCR is hopeless — skip it, keep the screenshots
+bm call-360p.mp4 --ocr none
+
+# fix domain vocabulary with a glossary hint
+bm demo.mkv -O initial_prompt="service names, staging, rollout"
+
+# batch a directory — each file gets its own folder under runs/
+for f in recordings/*.mp4; do bm "$f"; done
+
+# custom output root, keep more screenshots
+bm demo.mkv --out-root out --max-shots 50
+```
 
 ## Point queries — tooling for agents
 
@@ -162,25 +189,9 @@ Timecodes accept `SS`, `MM:SS`, or `HH:MM:SS`. The typical agent loop: read `tim
 
 `bm transcript` results are **cached by their full parameter set** (range + language + model + backend + options) under `runs/<name>/transcripts_at/` — repeating the same query returns instantly; `--force` recomputes.
 
-It also **reuses the full pipeline's work**: if the video already went through `bm extract` with the same model and backend and you pass no `-O` options, the range is sliced straight out of the cached passes — a pinned `--lang` serves from that language's pass, no `--lang` serves from the merged transcript. No ASR runs at all. Any `-O` option, a different model, or `--force` triggers a real re-run.
+It also **reuses the full pipeline's work**: if the video already went through `bm extract` with the same model, backend and `-O` options, the range is sliced straight out of the cached passes — a pinned `--lang` serves from that language's pass, no `--lang` serves from the merged transcript. No ASR runs at all. Different options or `--force` trigger a real re-run.
 
 Frames land under `frames_at/`; use `-o out.jpg` to override.
-
-### Examples
-
-```bash
-# Ukrainian meeting
-bm standup.mov --lang uk
-
-# low-res recording where OCR is hopeless — skip it, keep the screenshots
-bm call-360p.mp4 --ocr none
-
-# batch a directory — each file gets its own folder under runs/
-for f in recordings/*.mp4; do bm "$f"; done
-
-# custom output root, keep more screenshots
-bm demo.mkv --out-root out --max-shots 50
-```
 
 ## Talking to the video
 
