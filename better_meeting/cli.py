@@ -43,8 +43,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="зупинитись після етапу")
 
     px.add_argument("--lang", default="auto",
-                    help="uk / en / ru / auto; auto пробить запис у кількох місцях і, "
-                         "якщо мов кілька, транскрибує кожен мовний відрізок своєю мовою")
+                    help="конкретна мова (uk/ru/en/...) = один прогін нею; "
+                         "auto = повний прогін кожною з --langs зі злиттям найкращого")
+    px.add_argument("--langs", default="uk,ru,en",
+                    help="які мови проганяти при --lang auto (через кому)")
     px.add_argument("--asr-backend", default="auto", choices=["auto", "mlx", "faster"])
     px.add_argument("--asr-model", default="large-v3-turbo")
 

@@ -27,12 +27,13 @@ If OCR finds no readable text (low-res recording, or `--ocr none`), screenshots 
 
 ### Multilingual meetings
 
-Whisper's built-in auto-detect samples only the **first 30 seconds** — a meeting that opens with English small talk and continues in Ukrainian would get transcribed wrong. `bm` instead probes short clips across the *entire* recording:
+Whisper's built-in auto-detect samples only the **first 30 seconds** — useless for meetings that mix languages (a Ukrainian standup with English terms and Russian asides is an everyday case). `bm` doesn't guess:
 
-- **One language detected** → a single pass with that language pinned (more stable than raw auto, including the classic uk/ru confusion).
-- **Several languages detected** → the recording is split into language-homogeneous spans, each transcribed with its own language, and the segments are stitched back by time. A single stray foreign phrase doesn't trigger a split — a language must hold a meaningful share of the probes.
+When no language is pinned, it transcribes the whole recording **once per language** in `--langs` (default `uk,ru,en`), then merges: the timeline is covered by the segments from whichever pass Whisper was most confident about (`avg_logprob`) at that point. This survives *any* language mixing — down to the language switching between neighboring sentences — because every stretch of audio was decoded in every candidate language and the best decode wins locally. Hallucinated segments (Whisper's classic silence artifacts) are filtered by the standard `no_speech`/`logprob` heuristic.
 
-In multilingual recordings every transcript line carries its language tag (`[uk]`, `[en]`, `[ru]`), and `HOW-TO.md` reports the language share. Pin a single language with `--lang uk` to skip detection entirely.
+The cost is proportional: 3 languages = 3 transcription passes. Each pass is cached separately (`pass_uk.json`, …), so an interrupted run resumes without redoing finished passes. If you know the meeting's language, pin it — `--lang uk` — for a single pass. Adjust the candidate set with `--langs uk,en` etc.
+
+In multilingual recordings every transcript line carries its language tag (`[uk]`, `[en]`, `[ru]`), and `HOW-TO.md` reports the language share.
 
 ## One folder per video
 
@@ -107,7 +108,8 @@ Common options:
 | `--out DIR`            | *(auto)*       | exact working folder (overrides per-video naming)   |
 | `--force`              | off            | redo every stage, ignore cache                      |
 | `--only STAGE`         | —              | stop after `audio`/`transcribe`/`frames`/`ocr`/`bundle` |
-| `--lang uk\|en\|ru\|auto` | `auto`      | meeting language; `auto` handles multilingual recordings |
+| `--lang uk\|en\|ru\|auto` | `auto`      | pin one language (single pass) or `auto` (pass per `--langs`, best merge) |
+| `--langs L1,L2,...`    | `uk,ru,en`     | candidate languages tried when `--lang auto`        |
 | `--asr-model NAME`     | `large-v3-turbo` | Whisper model                                     |
 | `--frame-interval SEC` | `2.0`          | thumbnail sampling interval                          |
 | `--max-shots N`        | `30`           | how many screenshots to keep in `artifacts/`        |
