@@ -18,7 +18,8 @@ def render_transcript(transcript: list) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_timeline(transcript: list, screen: list, shots_by_t: dict, pause_threshold: float) -> str:
+def render_timeline(transcript: list, screen: list, shots_by_t: dict,
+                    pause_threshold: float, stats: str = "") -> str:
     multi = _is_multilang(transcript)
     items, prev_end = [], None
     for seg in transcript:
@@ -36,9 +37,11 @@ def render_timeline(transcript: list, screen: list, shots_by_t: dict, pause_thre
         items.append((ev["t"], "SCREEN", (body, shot)))
 
     items.sort(key=lambda x: x[0])
-    out = ["# Таймлайн", "",
-           "МОВА — транскрипція. ЕКРАН — тільки НОВІ рядки, що з'явились на екрані (OCR).",
-           "Посилання на скріншот стоїть там, де він є у теці screens/.", ""]
+    out = ["# Таймлайн", ""]
+    if stats:
+        out += [stats, ""]
+    out += ["МОВА — транскрипція. ЕКРАН — тільки НОВІ рядки, що з'явились на екрані (OCR).",
+            "Посилання на скріншот стоїть там, де він є у теці screens/.", ""]
     for t, kind, body in items:
         if kind == "SPEECH":
             out.append(f"[{ts(t)}] МОВА: {body}")

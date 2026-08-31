@@ -2,13 +2,13 @@
 
 **Talk to your meeting recordings.** better-meeting is a pure extractor: it pulls *everything* out of a video — timestamped speech transcript, text that appeared on screen, key screenshots — into one self-contained folder. Hand that folder to any LLM as context, and ask it anything about the meeting.
 
-**There is no LLM inside the tool.** It never summarizes, never interprets. Extraction is local and deterministic; the understanding is done by whatever model *you* connect — a chatbot you paste files into, or an agent that picks the folder up as a plugin.
+**There is no LLM inside the tool.** It never summarizes, never interprets. Extraction is local and deterministic; the understanding is done by whatever model *you* connect — an agent that picks the folder up and reads it as context.
 
 Works for any kind of recording: a daily standup that's all talk, a technical demo full of screen changes, a workshop, a plain call.
 
 ```bash
 bm meeting.mp4
-# -> runs/meeting/artifacts/  (transcript.md, timeline.md, screens/, PROMPT.md, HOW-TO.md)
+# -> runs/meeting/artifacts/  (transcript.md, timeline.md, screens/)
 ```
 
 ## What it extracts
@@ -21,7 +21,7 @@ The pipeline runs in cached stages — each writes into the video's working fold
 | 2 | `transcribe` | Whisper (mlx on macOS / faster-whisper elsewhere) with timecodes — one pass per candidate language, merged |
 | 3 | `frames`   | sample thumbnails, keep only keyframes where the screen changed    |
 | 4 | `ocr`      | macOS Vision / tesseract reads each keyframe, diffs new on-screen text |
-| 5 | `bundle`   | assembles `artifacts/`: transcript, timeline, screenshots, prompt  |
+| 5 | `bundle`   | assembles `artifacts/`: transcript, timeline, screenshots          |
 
 If OCR finds no readable text (low-res recording, or `--ocr none`), screenshots are still selected — evenly across the moments the screen changed — so a multimodal model can read them itself.
 
@@ -33,7 +33,7 @@ When no language is pinned, it transcribes the whole recording **once per langua
 
 The cost is proportional: 3 languages = 3 transcription passes. Each pass is cached separately (`pass_uk.json`, …), so an interrupted run resumes without redoing finished passes. If you know the meeting's language, pin it — `--lang uk` — for a single pass. Adjust the candidate set with `--langs uk,en` etc.
 
-In multilingual recordings every transcript line carries its language tag (`[uk]`, `[en]`, `[ru]`), and `HOW-TO.md` reports the language share.
+In multilingual recordings every transcript line carries its language tag (`[uk]`, `[en]`, `[ru]`), and the header of `timeline.md` reports the language share.
 
 ## One folder per video
 
@@ -51,9 +51,7 @@ runs/
 │   └── artifacts/          <- the interface: hand this folder to your LLM
 │       ├── transcript.md   — timestamped speech
 │       ├── timeline.md     — speech + new on-screen text + silences, merged
-│       ├── screens/ · screens_index.md
-│       ├── PROMPT.md       — intro instruction for the model
-│       └── HOW-TO.md       — drop-in guide for a human
+│       └── screens/ · screens_index.md
 └── onboarding-call/
     └── ...
 ```
@@ -62,10 +60,6 @@ runs/
 - Pin an exact folder with `--out path/to/dir` (overrides the per-video naming).
 
 Because the folder name is derived from the video, re-running the **same** recording reuses its cache; a **different** recording lands in a **different** folder.
-
-## Prompts are plain text files
-
-The intro prompt the model receives (`PROMPT.md`) and the human guide (`HOW-TO.md`) live as editable text in [better_meeting/prompts/](better_meeting/prompts/) — tweak them for your workflow without touching code. They are deliberately task-agnostic: they describe what the materials *are*, not what to build from them. What you ask the model is up to you.
 
 ## Install
 
@@ -195,10 +189,7 @@ Frames land under `frames_at/`; use `-o out.jpg` to override.
 
 ## Talking to the video
 
-`artifacts/` is the whole interface:
-
-- **By hand**: open `artifacts/HOW-TO.md` — attach `timeline.md` + screenshots to a chat, paste `PROMPT.md`, then ask anything: "what did we decide about the release?", "what command did they run at 12:40?", "summarize each person's status".
-- **Via an agent**: tell your agent — *"better-meeting is installed as `bm`; run `bm agents` and follow that guide to work with `<video>`"*. `bm agents` prints the full agent manual ([AGENTS.md](AGENTS.md)): how to extract, what the artifacts mean, and the point commands for drilling into moments. For the extracted materials themselves, `artifacts/PROMPT.md` defines the agent's role.
+`artifacts/` is the whole interface. Tell your agent — *"better-meeting is installed as `bm`; run `bm agents` and follow that guide to work with `<video>`"*. `bm agents` prints the full agent manual ([AGENTS.md](AGENTS.md)): how to extract, what the artifacts mean, and the point commands for drilling into moments. Then just ask anything: "what did we decide about the release?", "what command did they run at 12:40?", "summarize each person's status".
 
 ## License
 

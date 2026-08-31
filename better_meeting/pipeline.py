@@ -70,6 +70,5 @@ def run_pipeline(a) -> None:
         shot_width=a.shot_width,
         shot_quality=a.shot_quality,
         draw_label=not a.no_label,
-        sheet=a.sheet,
         pause=a.pause,
     )

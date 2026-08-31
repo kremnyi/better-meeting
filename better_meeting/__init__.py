@@ -11,8 +11,7 @@
   frames     3-5. прев'ю -> grid-diff -> повнорозмірні кадри
   ocr        6. macOS Vision / tesseract -> текст + діф нових рядків
   render     рендер transcript.md / timeline.md
-  shots      відбір, підпис і склейка скріншотів
-  prompts    завантаження текстів з prompts/*.md (PROMPT.md, HOWTO.md)
+  shots      відбір і підпис скріншотів
   bundle     7. збирання теки artifacts/
   pipeline   склейка етапів з кешуванням у теці відео
   cli        argparse + main()

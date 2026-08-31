@@ -66,7 +66,6 @@ def ocr_frames(frames: list, backend: str, langs: list, sim_threshold: float) ->
                 "t": fr["t"],
                 "path": fr["path"],
                 "added": new,
-                "chars": len(norm(text)),
             })
         prev_text = text
         if (i + 1) % 25 == 0:

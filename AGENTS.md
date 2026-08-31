@@ -35,14 +35,13 @@ runs/<name>/
 ├── pass_uk.json, pass_ru.json, pass_en.json                  # per-language ASR passes
 ├── thumbs/, frames/                                          # sampled + full frames
 └── artifacts/                    <- THE DELIVERABLE, self-contained
-    ├── PROMPT.md                 # intro instruction for the consuming model — read it first
-    ├── timeline.md               # merged speech + new on-screen text + silences (main file)
+    ├── timeline.md               # merged speech + new on-screen text + silences (main file);
+    │                             #   header lists stats (duration, language shares)
     ├── transcript.md             # timestamped speech only
-    ├── screens/ + screens_index.md
-    └── HOW-TO.md                 # drop-in guide for humans + stats (duration, language shares)
+    └── screens/ + screens_index.md
 ```
 
-**Your workflow after extract**: read `artifacts/PROMPT.md` (it defines your role), then `timeline.md`, look at `screens/*.jpg` yourself if you are multimodal, and answer the user's questions with `[HH:MM:SS]` timecode references.
+**Your workflow after extract**: read `artifacts/timeline.md`, look at `screens/*.jpg` yourself if you are multimodal, and answer the user's questions with `[HH:MM:SS]` timecode references. Quote commands, paths, and identifiers exactly as they appear in the materials; if the answer is not in the materials, say so plainly instead of guessing.
 
 ## Languages
 
@@ -82,6 +81,6 @@ bm transcript meeting.mp4 --from 10:00 --to 12:30 --lang uk \
 
 ## Working on the codebase
 
-- Layout: `bm.py` (entry) → `better_meeting/cli.py` (subcommands) → `pipeline.py` (stage glue) → one module per stage (`audio`, `asr`, `frames`, `ocr`, `shots`, `render`, `bundle`); `utils.py` helpers; prompts are **plain text** in `better_meeting/prompts/*.md` — edit them there, never inline in code.
+- Layout: `better_meeting/cli.py` (entry + subcommands) → `pipeline.py` (stage glue) → one module per stage (`audio`, `asr`, `frames`, `ocr`, `shots`, `render`, `bundle`); `utils.py` helpers.
 - Hard rules: no LLM calls inside the tool (extraction only); one output folder per video; point commands keep data on stdout / logs on stderr; every expensive stage must cache and respect `--force`.
 - Style: small modules, Ukrainian docstrings/log messages, English identifiers. No test suite — verify with targeted `python -c` checks and `bm --help` smoke runs, as there is no CI.

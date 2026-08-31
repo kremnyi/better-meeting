@@ -1,6 +1,5 @@
-"""Скріншоти для чату: відбір під ліміт вкладень, підпис таймкоду, склейка в сітки."""
+"""Скріншоти: відбір найінформативніших кадрів під ліміт, підпис таймкоду."""
 
-import math
 from pathlib import Path
 
 
@@ -71,28 +70,3 @@ def write_shot(src: str, dst: Path, label: str, width: int, quality: int, draw_l
         d.text((8, max(2, bar // 6)), label, fill=(255, 220, 120), font=_font(int(bar * 0.7)))
         im = canvas
     im.save(dst, "JPEG", quality=quality, optimize=True)
-
-
-def make_sheets(shot_files: list, out_dir: Path, per_sheet: int, width: int, quality: int) -> list:
-    """Склеює скріншоти в сітки — коли чат не приймає багато вкладень."""
-    from PIL import Image
-    out_dir.mkdir(parents=True, exist_ok=True)
-    sheets = []
-    for n in range(0, len(shot_files), per_sheet):
-        group = shot_files[n:n + per_sheet]
-        cols = math.ceil(math.sqrt(len(group)))
-        rows = math.ceil(len(group) / cols)
-        cell_w = width // cols
-        imgs = []
-        for f in group:
-            im = Image.open(f).convert("RGB")
-            im = im.resize((cell_w, round(im.height * cell_w / im.width)), Image.LANCZOS)
-            imgs.append(im)
-        cell_h = max(i.height for i in imgs)
-        sheet = Image.new("RGB", (cell_w * cols, cell_h * rows), (18, 18, 18))
-        for i, im in enumerate(imgs):
-            sheet.paste(im, ((i % cols) * cell_w, (i // cols) * cell_h))
-        path = out_dir / f"sheet_{n // per_sheet + 1:02d}.jpg"
-        sheet.save(path, "JPEG", quality=quality, optimize=True)
-        sheets.append(path.name)
-    return sheets

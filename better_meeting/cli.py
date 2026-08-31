@@ -25,8 +25,7 @@ from .pipeline import run_pipeline
 from .utils import die, parse_ts, ts, ts_file
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".tiff", ".bmp"}
-AGENTS_ALIASES = {"agents", "agent-readme", "agent_readme"}
-COMMANDS = {"extract", "frame", "ocr", "transcript"} | AGENTS_ALIASES
+COMMANDS = {"extract", "frame", "ocr", "transcript", "agents"}
 
 
 def _default_ocr_backend() -> str:
@@ -80,11 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
     px.add_argument("--shot-width", type=int, default=1400)
     px.add_argument("--shot-quality", type=int, default=72)
     px.add_argument("--no-label", action="store_true", help="не випалювати таймкод на кадрі")
-    px.add_argument("--sheet", type=int, default=0,
-                    help="склеїти по N кадрів у сітку (0 = вимкнено)")
 
-    sub.add_parser("agents", aliases=["agent-readme", "agent_readme"],
-                   help="надрукувати інструкцію для LLM-агента (AGENTS.md)")
+    sub.add_parser("agents", help="надрукувати інструкцію для LLM-агента (AGENTS.md)")
 
     pf = sub.add_parser("frame", help="один кадр відео на заданому таймкоді")
     pf.add_argument("video", type=Path)
@@ -217,7 +213,7 @@ def main() -> None:
         a.out = resolve_out(a)
         a.asr_opts = parse_opts(a.opt)
         run_pipeline(a)
-    elif a.cmd in AGENTS_ALIASES:
+    elif a.cmd == "agents":
         cmd_agents()
     elif a.cmd == "frame":
         cmd_frame(a)
