@@ -114,8 +114,6 @@ struct ContentView: View {
 
     private var recordingStage: some View {
         HStack(spacing: 20) {
-            CaptureMark(state: model.state, size: 64)
-
             VStack(alignment: .leading, spacing: 7) {
                 Text(model.elapsedText)
                     .font(.system(size: 42, weight: .medium, design: .monospaced))
@@ -133,14 +131,35 @@ struct ContentView: View {
             Button {
                 model.primaryAction()
             } label: {
-                Label(model.primaryButtonTitle, systemImage: model.primaryButtonSymbol)
-                    .frame(minWidth: 132)
-                    .padding(.vertical, 4)
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .stroke(.white.opacity(0.78), lineWidth: 1.5)
+                            .frame(width: 22, height: 22)
+
+                        if model.state == .recording {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(.white)
+                                .frame(width: 8, height: 8)
+                        } else {
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 8, height: 8)
+                        }
+                    }
+
+                    Text(model.primaryButtonTitle)
+                        .font(.headline)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 17)
+                .frame(minWidth: 154, minHeight: 44)
+                .background(Color.signalCoral, in: Capsule())
+                .contentShape(Capsule())
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(model.state == .recording ? .signalCoral : .accentColor)
+            .buttonStyle(.plain)
             .disabled(!model.canPerformPrimaryAction)
+            .opacity(model.canPerformPrimaryAction ? 1 : 0.46)
             .keyboardShortcut(.space, modifiers: [.command])
         }
         .padding(24)
