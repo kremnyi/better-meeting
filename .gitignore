@@ -1,41 +1,21 @@
-# --- better-meeting outputs ---
-# per-video working folders (default --out-root)
-runs/
-out/
-
-# --- media (keep large binaries out of git) ---
-*.mp4
-*.mov
-*.mkv
-*.webm
-*.wav
-*.mp3
-*.m4a
-
-# --- secrets / local notes (never commit) ---
-text.md
-.env
-*.secret
-*.key
-credentials*
-proxies*.txt
-
-# --- python ---
-.venv/
-venv/
-env/
-__pycache__/
-*.py[cod]
-*.egg-info/
-build/
-dist/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+# Swift Package Manager
 .build/
 .swiftpm/
 
-# --- os / editors ---
+# App bundle output
+dist/
+
+# Xcode
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# Local configuration
+.env
+*.secret
+*.key
+
+# macOS and editors
 .DS_Store
 .idea/
 .vscode/
