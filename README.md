@@ -10,7 +10,8 @@ Works for any kind of recording: a daily standup that's all talk, a technical de
 
 The repository also contains a SwiftUI recorder for macOS 15 and newer. It
 captures the main display, system audio, and microphone, transcribes locally,
-and creates a meeting folder with the recording and `transcript.md`.
+and creates a meeting folder with the recording and `transcript.md`. The app
+runs entirely from the menu bar without a Dock icon or separate window.
 
 See [`macOS/README.md`](macOS/README.md) for build and usage instructions.
 
