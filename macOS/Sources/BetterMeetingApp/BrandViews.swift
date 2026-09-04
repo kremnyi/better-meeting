@@ -27,6 +27,50 @@ enum BrandAssets {
     }()
 }
 
+struct MenuBarStatusIcon: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let state: AppState
+
+    var body: some View {
+        Group {
+            if state == .processing {
+                if reduceMotion {
+                    Image(systemName: "hourglass")
+                        .font(.system(size: 13, weight: .medium))
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .progressViewStyle(.circular)
+                }
+            } else {
+                ZStack(alignment: .topTrailing) {
+                    Image(nsImage: BrandAssets.menuBarIcon)
+
+                    if state == .recording {
+                        Circle()
+                            .fill(Color.signalCoral)
+                            .frame(width: 6, height: 6)
+                    }
+                }
+            }
+        }
+        .frame(width: 18, height: 18)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        switch state {
+        case .idle: "Better Meeting"
+        case .preparing: "Better Meeting, preparing to record"
+        case .recording: "Better Meeting, recording"
+        case .processing: "Better Meeting, processing recording"
+        case .failed: "Better Meeting, needs attention"
+        }
+    }
+}
+
 extension Color {
     static let signalCoral = Color(red: 0.96, green: 0.25, blue: 0.22)
 }

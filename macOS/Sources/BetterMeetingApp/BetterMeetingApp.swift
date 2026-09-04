@@ -9,8 +9,7 @@ struct BetterMeetingApp: App {
             MenuBarControlView()
                 .environmentObject(model)
         } label: {
-            Image(nsImage: BrandAssets.menuBarIcon)
-                .accessibilityLabel("Better Meeting")
+            MenuBarStatusIcon(state: model.state)
         }
         .menuBarExtraStyle(.window)
     }
