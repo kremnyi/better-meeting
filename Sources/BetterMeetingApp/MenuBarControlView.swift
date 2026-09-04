@@ -102,8 +102,8 @@ struct MenuBarControlView: View {
                             }
                         }
                     }
+                    .padding(.trailing, 16)
                 }
-                .contentMargins(.trailing, 12, for: .scrollContent)
                 .frame(height: historyListHeight)
             }
 
