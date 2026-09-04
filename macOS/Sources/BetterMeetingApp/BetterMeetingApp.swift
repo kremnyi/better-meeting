@@ -8,9 +8,9 @@ struct BetterMeetingApp: App {
         WindowGroup("Better Meeting", id: "main") {
             ContentView()
                 .environmentObject(model)
-                .frame(minWidth: 720, minHeight: 520)
+                .frame(minWidth: 680, minHeight: 410)
         }
-        .defaultSize(width: 820, height: 620)
+        .defaultSize(width: 760, height: 470)
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .newItem) {}

@@ -9,21 +9,20 @@ struct ContentView: View {
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    meetingDetails
-                    recordingStage
+                VStack(alignment: .leading, spacing: 16) {
+                    recordingConsole
 
                     if let error = model.errorMessage {
                         errorView(error)
                     }
 
-                    outputStrip
-
-                    if model.completedFolder != nil {
+                    if model.state == .complete {
                         completedActions
                     }
+
+                    privacyNote
                 }
-                .padding(28)
+                .padding(24)
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -31,18 +30,44 @@ struct ContentView: View {
 
     private var header: some View {
         HStack(spacing: 13) {
-            ApplicationIcon(size: 46)
+            ApplicationIcon(size: 36)
 
             Text("Better Meeting")
-                .font(.system(size: 25, weight: .semibold, design: .rounded))
+                .font(.system(size: 21, weight: .semibold, design: .rounded))
 
             Spacer()
 
             StatePill(state: model.state)
         }
-        .padding(.horizontal, 28)
-        .padding(.top, 25)
-        .padding(.bottom, 19)
+        .padding(.horizontal, 24)
+        .padding(.top, 19)
+        .padding(.bottom, 15)
+    }
+
+    private var recordingConsole: some View {
+        VStack(spacing: 0) {
+            meetingDetails
+
+            Divider()
+                .padding(.horizontal, 20)
+
+            recordingStage
+
+            Divider()
+                .padding(.horizontal, 20)
+
+            captureSummary
+        }
+        .background(Color(nsColor: .textBackgroundColor).opacity(0.82), in: RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(
+                    model.state == .recording
+                        ? Color.signalCoral.opacity(0.7)
+                        : Color(nsColor: .separatorColor).opacity(0.8),
+                    lineWidth: model.state == .recording ? 1.5 : 1
+                )
+        }
     }
 
     private var meetingDetails: some View {
@@ -84,91 +109,64 @@ struct ContentView: View {
                 .padding(.leading, 8)
             }
         }
-        .padding(18)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72), in: RoundedRectangle(cornerRadius: 14))
-        .overlay {
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.72), lineWidth: 1)
-        }
+        .padding(22)
     }
 
     private var recordingStage: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 24) {
-                CaptureMark(state: model.state, size: 92)
+        HStack(spacing: 20) {
+            CaptureMark(state: model.state, size: 64)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(model.elapsedText)
-                        .font(.system(size: 46, weight: .medium, design: .monospaced))
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
+            VStack(alignment: .leading, spacing: 7) {
+                Text(model.elapsedText)
+                    .font(.system(size: 42, weight: .medium, design: .monospaced))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
 
-                    Text(model.statusText)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 16)
-
-                Button {
-                    model.primaryAction()
-                } label: {
-                    Label(model.primaryButtonTitle, systemImage: model.primaryButtonSymbol)
-                        .frame(minWidth: 138)
-                        .padding(.vertical, 4)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .tint(model.state == .recording ? .signalCoral : .accentColor)
-                .disabled(!model.canPerformPrimaryAction)
-                .keyboardShortcut(.space, modifiers: [.command])
+                Text(model.statusText)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(26)
 
-            Divider()
-                .padding(.horizontal, 20)
+            Spacer(minLength: 16)
 
-            HStack(spacing: 18) {
-                Label("Main display", systemImage: "rectangle.on.rectangle")
-                Label("System audio", systemImage: "speaker.wave.2")
-                Label("Microphone", systemImage: "mic")
-
-                Spacer()
-
-                Text("⌘ Space")
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.tertiary)
+            Button {
+                model.primaryAction()
+            } label: {
+                Label(model.primaryButtonTitle, systemImage: model.primaryButtonSymbol)
+                    .frame(minWidth: 132)
+                    .padding(.vertical, 4)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 14)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(model.state == .recording ? .signalCoral : .accentColor)
+            .disabled(!model.canPerformPrimaryAction)
+            .keyboardShortcut(.space, modifiers: [.command])
         }
-        .background(Color(nsColor: .textBackgroundColor).opacity(0.82), in: RoundedRectangle(cornerRadius: 18))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(
-                    model.state == .recording
-                        ? Color.signalCoral.opacity(0.7)
-                        : Color(nsColor: .separatorColor).opacity(0.8),
-                    lineWidth: model.state == .recording ? 1.5 : 1
-                )
-        }
+        .padding(24)
     }
 
-    private var outputStrip: some View {
-        HStack(spacing: 20) {
-            Label("MP4 recording", systemImage: "video")
-            Label("Markdown transcript", systemImage: "doc.plaintext")
+    private var captureSummary: some View {
+        HStack {
+            Label("Main display + system audio + microphone", systemImage: "rectangle.on.rectangle")
 
             Spacer()
 
-            Label("Stored locally", systemImage: "lock.shield")
-                .foregroundStyle(.secondary)
+            Text("⌘ Space")
+                .font(.caption.monospaced())
+                .foregroundStyle(.tertiary)
         }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 13)
+    }
+
+    private var privacyNote: some View {
+        Label("Video and transcript stay on this Mac.", systemImage: "lock.shield")
         .font(.callout)
-        .padding(.horizontal, 4)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 5)
     }
 
     private func errorView(_ message: String) -> some View {
