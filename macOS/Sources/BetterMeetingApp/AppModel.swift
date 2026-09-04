@@ -47,12 +47,19 @@ final class AppModel: ObservableObject {
         case .preparing: "Preparing…"
         case .processing: "Transcribing…"
         case .idle: "Start recording"
-        case .failed: "Try again"
+        case .failed:
+            privacyPermission == .screenRecording ? "Restart Better Meeting" : "Try again"
         }
     }
 
     var primaryButtonSymbol: String {
-        state == .recording ? "stop.fill" : "record.circle"
+        if state == .recording {
+            return "stop.fill"
+        }
+        if state == .failed, privacyPermission == .screenRecording {
+            return "arrow.clockwise"
+        }
+        return "record.circle"
     }
 
     var captureAccessText: String {
@@ -75,6 +82,8 @@ final class AppModel: ObservableObject {
     func primaryAction() {
         if state == .recording {
             stopRecording()
+        } else if state == .failed, privacyPermission == .screenRecording {
+            restartApplication()
         } else {
             startRecording()
         }
@@ -113,6 +122,26 @@ final class AppModel: ObservableObject {
     func openPrivacySettings() {
         guard let url = privacyPermission?.settingsURL else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    private func restartApplication() {
+        statusText = "Restarting Better Meeting…"
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(
+            at: Bundle.main.bundleURL,
+            configuration: configuration
+        ) { [weak self] _, error in
+            Task { @MainActor [weak self] in
+                if let error {
+                    self?.fail(error)
+                } else {
+                    NSApp.terminate(nil)
+                }
+            }
+        }
     }
 
     func reset() {
@@ -268,13 +297,13 @@ final class AppModel: ObservableObject {
     }
 }
 
-enum PrivacyPermission {
+enum PrivacyPermission: Equatable {
     case screenRecording
     case microphone
 
     var accessNeededText: String {
         switch self {
-        case .screenRecording: "Screen recording access needed"
+        case .screenRecording: "Enable screen access, then restart"
         case .microphone: "Microphone access needed"
         }
     }

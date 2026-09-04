@@ -12,8 +12,10 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate {
     private var stopContinuation: CheckedContinuation<Void, Error>?
 
     func requestPermissions() async throws {
-        let screenAllowed = CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess()
-        guard screenAllowed else { throw RecorderError.screenPermissionDenied }
+        guard CGPreflightScreenCaptureAccess() else {
+            _ = CGRequestScreenCaptureAccess()
+            throw RecorderError.screenPermissionDenied
+        }
 
         let microphoneAllowed: Bool
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -171,7 +173,7 @@ enum RecorderError: LocalizedError {
         case .notRecording:
             "There is no active recording to stop."
         case .screenPermissionDenied:
-            "Screen recording access is off. Enable Better Meeting in System Settings → Privacy & Security → Screen & System Audio Recording."
+            "Screen recording access needs to be enabled or refreshed. Turn Better Meeting on in System Settings, then restart the app."
         case .microphonePermissionDenied:
             "Microphone access is off. Enable Better Meeting in System Settings → Privacy & Security → Microphone."
         case .noDisplay:
