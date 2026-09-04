@@ -6,10 +6,21 @@ enum BrandAssets {
         ?? NSImage(systemSymbolName: "waveform.badge.mic", accessibilityDescription: nil)!
 
     static let menuBarIcon: NSImage = {
-        let image = loadImage(named: "MenuBarIconTemplate")
-            ?? NSImage(systemSymbolName: "waveform", accessibilityDescription: nil)!
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+            NSColor.black.setFill()
+
+            for bar in [
+                NSRect(x: 1.75, y: 5.5, width: 2.5, height: 7),
+                NSRect(x: 5.75, y: 1.5, width: 2.5, height: 15),
+                NSRect(x: 9.75, y: 4, width: 2.5, height: 10),
+            ] {
+                NSBezierPath(roundedRect: bar, xRadius: 1.25, yRadius: 1.25).fill()
+            }
+
+            NSBezierPath(ovalIn: NSRect(x: 14, y: 1.75, width: 4, height: 4)).fill()
+            return true
+        }
         image.isTemplate = true
-        image.size = NSSize(width: 18, height: 18)
         return image
     }()
 
