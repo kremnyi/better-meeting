@@ -16,13 +16,9 @@ struct BetterMeetingApp: App {
             CommandGroup(replacing: .newItem) {}
         }
 
-        MenuBarExtra {
+        MenuBarExtra("Better Meeting", systemImage: "waveform") {
             MenuBarControlView()
                 .environmentObject(model)
-        } label: {
-            Image(systemName: "waveform")
-                .symbolRenderingMode(.monochrome)
-                .accessibilityLabel("Better Meeting")
         }
         .menuBarExtraStyle(.window)
     }
