@@ -167,7 +167,7 @@ struct ContentView: View {
 
     private var captureSummary: some View {
         HStack {
-            Label("Main display + system audio + microphone", systemImage: "rectangle.on.rectangle")
+            Label(model.captureAccessText, systemImage: model.captureAccessSymbol)
 
             Spacer()
 
@@ -192,12 +192,31 @@ struct ContentView: View {
     }
 
     private func errorView(_ message: String) -> some View {
-        Label(message, systemImage: "exclamationmark.triangle.fill")
-            .font(.callout)
-            .foregroundStyle(.red)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+        VStack(alignment: .leading, spacing: 12) {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout)
+                .foregroundStyle(.red)
+
+            if model.privacyPermission != nil || model.completedFolder != nil {
+                HStack(spacing: 10) {
+                    if model.privacyPermission != nil {
+                        Button("Open System Settings") {
+                            model.openPrivacySettings()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+
+                    if model.completedFolder != nil {
+                        Button("Show saved files") {
+                            model.openCompletedFolder()
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var completedActions: some View {

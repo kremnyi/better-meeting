@@ -1,5 +1,7 @@
 import AppKit
+import AVFoundation
 import Combine
+import CoreGraphics
 import Foundation
 
 enum AppState: Equatable {
@@ -24,6 +26,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var completedFolder: URL?
     @Published private(set) var outputRoot: URL
+    @Published private(set) var privacyPermission: PrivacyPermission?
 
     private let recorder = MeetingRecorder()
     private let transcriber = LocalTranscriber()
@@ -59,6 +62,23 @@ final class AppModel: ObservableObject {
         state == .idle || state == .recording || state == .failed
     }
 
+    var captureAccessText: String {
+        if let privacyPermission {
+            return privacyPermission.accessNeededText
+        }
+
+        let microphoneReady = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        if CGPreflightScreenCaptureAccess() && microphoneReady {
+            return "Display, system audio, and microphone ready"
+        }
+
+        return "Permissions requested when recording"
+    }
+
+    var captureAccessSymbol: String {
+        privacyPermission == nil ? "shield" : "exclamationmark.shield"
+    }
+
     func primaryAction() {
         if state == .recording {
             stopRecording()
@@ -87,6 +107,11 @@ final class AppModel: ObservableObject {
         NSWorkspace.shared.open(completedFolder)
     }
 
+    func openPrivacySettings() {
+        guard let url = privacyPermission?.settingsURL else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     func reset() {
         stopTimer()
         elapsed = 0
@@ -94,6 +119,7 @@ final class AppModel: ObservableObject {
         statusText = "Ready to record your main display and audio."
         errorMessage = nil
         completedFolder = nil
+        privacyPermission = nil
         activeFolder = nil
         recordedAt = nil
         meetingTitle = ""
@@ -106,12 +132,15 @@ final class AppModel: ObservableObject {
         statusText = "Checking screen and microphone access…"
         errorMessage = nil
         completedFolder = nil
+        privacyPermission = nil
         activeFolder = nil
         recordedAt = nil
 
         let title = meetingTitle
         Task {
             do {
+                try await recorder.requestPermissions()
+
                 let startedAt = Date()
                 let folder = try MeetingArtifacts.createDirectory(
                     in: outputRoot,
@@ -196,6 +225,35 @@ final class AppModel: ObservableObject {
         state = .failed
         statusText = "Couldn’t finish this recording."
         errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+
+        switch error as? RecorderError {
+        case .screenPermissionDenied:
+            privacyPermission = .screenRecording
+        case .microphonePermissionDenied:
+            privacyPermission = .microphone
+        default:
+            privacyPermission = nil
+        }
+    }
+}
+
+enum PrivacyPermission {
+    case screenRecording
+    case microphone
+
+    var accessNeededText: String {
+        switch self {
+        case .screenRecording: "Screen recording access needed"
+        case .microphone: "Microphone access needed"
+        }
+    }
+
+    var settingsURL: URL? {
+        let anchor = switch self {
+        case .screenRecording: "Privacy_ScreenCapture"
+        case .microphone: "Privacy_Microphone"
+        }
+        return URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")
     }
 }
 

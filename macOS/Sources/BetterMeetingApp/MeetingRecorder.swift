@@ -11,11 +11,30 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate {
     private var startContinuation: CheckedContinuation<Void, Error>?
     private var stopContinuation: CheckedContinuation<Void, Error>?
 
+    func requestPermissions() async throws {
+        let screenAllowed = CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess()
+        guard screenAllowed else { throw RecorderError.screenPermissionDenied }
+
+        let microphoneAllowed: Bool
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            microphoneAllowed = true
+        case .notDetermined:
+            microphoneAllowed = await AVCaptureDevice.requestAccess(for: .audio)
+        case .denied, .restricted:
+            microphoneAllowed = false
+        @unknown default:
+            microphoneAllowed = false
+        }
+        guard microphoneAllowed else { throw RecorderError.microphonePermissionDenied }
+    }
+
     func start(to outputURL: URL) async throws {
         guard stream == nil else { throw RecorderError.alreadyRecording }
-
-        let microphoneAllowed = await AVCaptureDevice.requestAccess(for: .audio)
-        guard microphoneAllowed else { throw RecorderError.microphonePermissionDenied }
+        guard CGPreflightScreenCaptureAccess() else { throw RecorderError.screenPermissionDenied }
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
+            throw RecorderError.microphonePermissionDenied
+        }
 
         let content = try await SCShareableContent.excludingDesktopWindows(
             false,
@@ -141,6 +160,7 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate {
 enum RecorderError: LocalizedError {
     case alreadyRecording
     case notRecording
+    case screenPermissionDenied
     case microphonePermissionDenied
     case noDisplay
 
@@ -150,6 +170,8 @@ enum RecorderError: LocalizedError {
             "A meeting is already being recorded."
         case .notRecording:
             "There is no active recording to stop."
+        case .screenPermissionDenied:
+            "Screen recording access is off. Enable Better Meeting in System Settings → Privacy & Security → Screen & System Audio Recording."
         case .microphonePermissionDenied:
             "Microphone access is off. Enable Better Meeting in System Settings → Privacy & Security → Microphone."
         case .noDisplay:
