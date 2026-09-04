@@ -88,7 +88,13 @@ final class AppModel: ObservableObject {
         case .processing: "Transcribing…"
         case .idle: "Start recording"
         case .failed:
-            privacyPermission == .screenRecording ? "Restart Better Meeting" : "Try again"
+            if privacyPermission == .screenRecording {
+                "Restart Better Meeting"
+            } else if completedFolder != nil {
+                "New recording"
+            } else {
+                "Try again"
+            }
         }
     }
 
@@ -113,7 +119,7 @@ final class AppModel: ObservableObject {
 
         let microphoneReady = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         if CGPreflightScreenCaptureAccess() && microphoneReady {
-            return "Display, system audio, and microphone ready"
+            return "Screen, system audio, and mic ready"
         }
 
         return "Permissions requested when recording"
