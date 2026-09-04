@@ -94,7 +94,7 @@ enum MeetingArtifacts {
         )
     }
 
-    static func recentTranscriptions(in root: URL, limit: Int = 5) -> [MeetingHistoryItem] {
+    static func recentTranscriptions(in root: URL, limit: Int = 10) -> [MeetingHistoryItem] {
         guard limit > 0 else { return [] }
 
         let folders = (try? FileManager.default.contentsOfDirectory(

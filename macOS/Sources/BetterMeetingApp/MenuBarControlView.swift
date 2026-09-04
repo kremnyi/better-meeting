@@ -3,7 +3,6 @@ import SwiftUI
 
 struct MenuBarControlView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var isHistoryExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -88,46 +87,42 @@ struct MenuBarControlView: View {
     }
 
     private var historySection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                withAnimation(.easeOut(duration: 0.16)) {
-                    isHistoryExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Text("Recent transcripts")
-                        .font(.callout.weight(.medium))
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Recent transcripts")
+                .font(.callout.weight(.medium))
 
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isHistoryExpanded ? 90 : 0))
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityValue(isHistoryExpanded ? "Expanded" : "Collapsed")
-
-            if isHistoryExpanded {
-                if model.transcriptionHistory.isEmpty {
-                    Text("Completed transcripts will appear here.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 10)
-                } else {
-                    VStack(alignment: .leading, spacing: 0) {
+            if model.transcriptionHistory.isEmpty {
+                Text("Completed transcripts will appear here.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(model.transcriptionHistory) { item in
-                            Divider()
-                                .padding(.vertical, 8)
-
                             historyRow(item)
+
+                            if item.id != model.transcriptionHistory.last?.id {
+                                Divider()
+                            }
                         }
                     }
                 }
+                .frame(height: historyListHeight)
             }
+
+            Button {
+                model.openMeetingsFolder()
+            } label: {
+                Label("Open meetings folder", systemImage: "folder")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
+    }
+
+    private var historyListHeight: CGFloat {
+        CGFloat(min(model.transcriptionHistory.count, 6)) * 44
     }
 
     private func historyRow(_ item: MeetingHistoryItem) -> some View {
@@ -158,6 +153,7 @@ struct MenuBarControlView: View {
             .help("Show in Finder")
             .accessibilityLabel("Show \(item.title) in Finder")
         }
+        .frame(minHeight: 43)
     }
 
     private var destinationButton: some View {

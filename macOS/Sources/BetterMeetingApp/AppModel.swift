@@ -168,6 +168,16 @@ final class AppModel: ObservableObject {
         NSWorkspace.shared.open(item.folderURL)
     }
 
+    func openMeetingsFolder() {
+        if !FileManager.default.fileExists(atPath: outputRoot.path) {
+            try? FileManager.default.createDirectory(
+                at: outputRoot,
+                withIntermediateDirectories: true
+            )
+        }
+        NSWorkspace.shared.open(outputRoot)
+    }
+
     func openCompletedFolder() {
         guard let completedFolder else { return }
         NSWorkspace.shared.open(completedFolder)
