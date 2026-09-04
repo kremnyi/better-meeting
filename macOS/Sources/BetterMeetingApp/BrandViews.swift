@@ -28,7 +28,6 @@ enum BrandAssets {
 }
 
 extension Color {
-    static let brandGraphite = Color(red: 0.075, green: 0.105, blue: 0.135)
     static let signalCoral = Color(red: 0.96, green: 0.25, blue: 0.22)
 }
 
@@ -39,7 +38,6 @@ extension AppState {
         case .preparing: "Preparing"
         case .recording: "Recording"
         case .processing: "Finishing"
-        case .complete: "Complete"
         case .failed: "Needs attention"
         }
     }
@@ -49,7 +47,6 @@ extension AppState {
         case .idle: "circle"
         case .preparing, .processing: "hourglass"
         case .recording: "record.circle.fill"
-        case .complete: "checkmark.circle.fill"
         case .failed: "exclamationmark.triangle.fill"
         }
     }
@@ -57,7 +54,6 @@ extension AppState {
     var tint: Color {
         switch self {
         case .recording: .signalCoral
-        case .complete: .green
         case .failed: .orange
         default: .secondary
         }

@@ -11,15 +11,11 @@ struct MenuBarControlView: View {
             Divider()
 
             content
-                .padding(14)
+                .padding(12)
 
             Divider()
 
             HStack(spacing: 8) {
-                Label("Files stay on this Mac", systemImage: "lock.shield")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-
                 Spacer()
 
                 Button("Quit") {
@@ -27,10 +23,10 @@ struct MenuBarControlView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
-        .frame(width: 340)
+        .frame(width: 304)
         .onAppear {
             model.refreshHistory()
         }
@@ -41,13 +37,15 @@ struct MenuBarControlView: View {
             Text("Better Meeting")
                 .font(.headline)
 
-            Spacer()
+            if model.state != .idle {
+                Spacer()
 
-            Label(model.state.label, systemImage: model.state.symbol)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(model.state.tint)
+                Label(model.state.label, systemImage: model.state.symbol)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(model.state.tint)
+            }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 12)
         .padding(.vertical, 12)
     }
 
@@ -62,8 +60,6 @@ struct MenuBarControlView: View {
             recordingContent
         case .processing:
             processingContent
-        case .complete:
-            completeContent
         case .failed:
             failedContent
         }
@@ -133,6 +129,12 @@ struct MenuBarControlView: View {
                     .lineLimit(1)
 
                 HStack(spacing: 4) {
+                    if item.folderURL == model.completedFolder {
+                        Label("Saved", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text("·")
+                    }
+
                     Text(item.recordedAt, format: .dateTime.month(.abbreviated).day().hour().minute())
                     Text("·")
                     Text(Timecode.string(item.duration))
@@ -255,43 +257,6 @@ struct MenuBarControlView: View {
         } else {
             ProgressView()
                 .controlSize(.small)
-        }
-    }
-
-    private var completeContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(model.elapsedText)
-                    .font(.title3.monospacedDigit())
-
-                Text("recorded")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Button {
-                model.openCompletedTranscript()
-            } label: {
-                Label("Open transcript", systemImage: "doc.plaintext")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(.brandGraphite)
-
-            HStack {
-                Button("Show in Finder") {
-                    model.openCompletedFolder()
-                }
-
-                Spacer()
-
-                Button("New recording") {
-                    model.reset()
-                }
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
     }
 

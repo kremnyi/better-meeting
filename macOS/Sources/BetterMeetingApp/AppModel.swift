@@ -9,7 +9,6 @@ enum AppState: Equatable {
     case preparing
     case recording
     case processing
-    case complete
     case failed
 }
 
@@ -85,7 +84,6 @@ final class AppModel: ObservableObject {
     var primaryButtonTitle: String {
         switch state {
         case .recording: "Stop recording"
-        case .complete: "Recording complete"
         case .preparing: "Preparing…"
         case .processing: "Transcribing…"
         case .idle: "Start recording"
@@ -183,16 +181,6 @@ final class AppModel: ObservableObject {
         NSWorkspace.shared.open(completedFolder)
     }
 
-    func openCompletedTranscript() {
-        guard let completedFolder else { return }
-        let transcript = completedFolder.appendingPathComponent("transcript.md")
-        if FileManager.default.fileExists(atPath: transcript.path) {
-            NSWorkspace.shared.open(transcript)
-        } else {
-            NSWorkspace.shared.open(completedFolder)
-        }
-    }
-
     func openPrivacySettings() {
         guard let url = privacyPermission?.settingsURL else { return }
         NSWorkspace.shared.open(url)
@@ -216,21 +204,6 @@ final class AppModel: ObservableObject {
                 }
             }
         }
-    }
-
-    func reset() {
-        stopTimer()
-        elapsed = 0
-        state = .idle
-        statusText = "Ready to record your main display and audio."
-        errorMessage = nil
-        completedFolder = nil
-        privacyPermission = nil
-        processingFraction = nil
-        processingPhase = nil
-        activeFolder = nil
-        recordedAt = nil
-        meetingTitle = ""
     }
 
     private func startRecording() {
@@ -339,10 +312,16 @@ final class AppModel: ObservableObject {
 
             completedFolder = folder
             refreshHistory()
-            state = .complete
-            statusText = "Video and transcript are ready."
+            elapsed = 0
+            state = .idle
+            statusText = "Ready to record your main display and audio."
+            errorMessage = nil
+            privacyPermission = nil
             processingFraction = nil
             processingPhase = nil
+            activeFolder = nil
+            self.recordedAt = nil
+            meetingTitle = ""
         } catch {
             if let activeFolder {
                 completedFolder = activeFolder
