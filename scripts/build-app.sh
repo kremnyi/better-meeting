@@ -4,7 +4,6 @@ set -euo pipefail
 
 script_dir=${0:A:h}
 package_dir=${script_dir:h}
-repo_dir=${package_dir:h}
 build_dir="$package_dir/.build"
 app_dir="$package_dir/dist/Better Meeting.app"
 iconset_dir="$build_dir/BetterMeeting.iconset"
@@ -50,8 +49,8 @@ sips -z 18 18 "$package_dir/Assets/MenuBarIconTemplate.png" \
     --out "$app_dir/Contents/Resources/MenuBarIconTemplate.png" >/dev/null
 sips -z 36 36 "$package_dir/Assets/MenuBarIconTemplate.png" \
     --out "$app_dir/Contents/Resources/MenuBarIconTemplate@2x.png" >/dev/null
-cp "$repo_dir/LICENSE" "$app_dir/Contents/Resources/LICENSE.txt"
-cp "$repo_dir/NOTICE" "$app_dir/Contents/Resources/NOTICE.txt"
+cp "$package_dir/LICENSE" "$app_dir/Contents/Resources/LICENSE.txt"
+cp "$package_dir/NOTICE" "$app_dir/Contents/Resources/NOTICE.txt"
 cp "$package_dir/ThirdPartyNotices.md" "$app_dir/Contents/Resources/ThirdPartyNotices.md"
 cp "$build_dir/checkouts/argmax-oss-swift/LICENSE" "$app_dir/Contents/Resources/Argmax-LICENSE.txt"
 cp "$build_dir/checkouts/argmax-oss-swift/NOTICES" "$app_dir/Contents/Resources/Argmax-NOTICES.txt"

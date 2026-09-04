@@ -1,22 +1,27 @@
 # Contributing
 
-Contributions are welcome under the terms of the [Apache License 2.0](LICENSE).
+Contributions to the native macOS app are welcome under the terms of the
+[Apache License 2.0](LICENSE).
 
-## Developer Certificate of Origin
+## Build locally
 
-Every commit must be signed off:
+Better Meeting requires macOS 15, Apple Silicon, and Xcode 16 or newer.
 
 ```bash
-git commit -s
+git clone https://github.com/kremnyi/better-meeting.git
+cd better-meeting
+swift build --product BetterMeeting
 ```
 
-This adds a `Signed-off-by: Your Name <you@example.com>` line certifying the
-[Developer Certificate of Origin](https://developercertificate.org/): that you
-wrote the contribution yourself, or otherwise have the right to submit it under
-the project's license. In particular, **do not submit code that belongs to your
-employer or a third party** unless you are explicitly authorized to license it
-under Apache 2.0.
+Use `./scripts/build-app.sh` when a complete `.app` bundle is needed.
 
-Per section 5 of the license, every submitted contribution is licensed to the
-project under Apache 2.0, with copyright retained by its author. Pull requests
-without a sign-off will not be merged.
+## Before opening a pull request
+
+- Keep the app menu-bar-only unless a change explicitly requires another surface.
+- Keep recording and transcription local.
+- Preserve one self-contained folder per meeting.
+- Match the existing Swift and SwiftUI style.
+- Keep commits focused and verify a release build succeeds.
+
+If a change affects recording permissions, also test a signed app bundle because
+macOS grants Screen Recording access to an app identity, not just its bundle ID.

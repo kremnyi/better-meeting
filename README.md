@@ -1,205 +1,106 @@
-# better-meeting
+# Better Meeting
 
-**Talk to your meeting recordings.** better-meeting is a pure extractor: it pulls *everything* out of a video — timestamped speech transcript, text that appeared on screen, key screenshots — into one self-contained folder. Hand that folder to any LLM as context, and ask it anything about the meeting.
+A native macOS menu bar app that records meetings and turns them into local,
+portable transcripts.
 
-**There is no LLM inside the tool.** It never summarizes, never interprets. Extraction is local and deterministic; the understanding is done by whatever model *you* connect — an agent that picks the folder up and reads it as context.
+Better Meeting captures the main display, system audio, and microphone. When
+recording stops, it transcribes the audio on the Mac and creates one folder with
+the video, audio, Markdown transcript, and machine-readable metadata. Recording
+controls, processing progress, and recent transcripts all live in the menu bar;
+there is no Dock icon or separate app window.
 
-Works for any kind of recording: a daily standup that's all talk, a technical demo full of screen changes, a workshop, a plain call.
+[Features](#features) · [Install](#install-from-source) · [Permissions](#permissions-and-privacy) · [Development](#development) · [Project origin](#project-origin)
 
-## Native macOS recorder
+## Features
 
-The repository also contains a SwiftUI recorder for macOS 15 and newer. It
-captures the main display, system audio, and microphone, transcribes locally,
-and creates a meeting folder with the recording and `transcript.md`. The app
-runs entirely from the menu bar without a Dock icon or separate window.
+- Record the main display, system audio, and microphone with ScreenCaptureKit
+- Transcribe locally with WhisperKit after recording stops
+- Follow real progress while the model downloads and the transcript is created
+- Reopen any of the 10 most recent transcripts from the menu bar
+- Open an individual meeting folder or the complete meetings folder in Finder
+- Keep recordings and transcripts on the Mac
 
-See [`macOS/README.md`](macOS/README.md) for build and usage instructions.
+## Meeting folders
+
+The default location is `~/Documents/Better Meetings`. You can choose another
+folder before recording.
+
+```text
+2026-09-04 14.30.00 — Product sync/
+├── recording.mp4
+├── audio.m4a
+├── transcript.md
+├── transcript.json
+└── metadata.json
+```
+
+`transcript.md` contains readable, timestamped text and links back to the video.
+The JSON files make the same meeting easy to use with scripts or other tools.
+
+## Requirements
+
+- macOS 15 or newer
+- Apple Silicon Mac
+- Xcode 16 or newer to build from source
+- Internet access for the first Whisper model download
+
+## Install from source
 
 ```bash
-bm meeting.mp4
-# -> runs/meeting/artifacts/  (transcript.md, timeline.md, screens/)
-```
-
-## What it extracts
-
-The pipeline runs in cached stages — each writes into the video's working folder, and re-running skips finished stages (`--force` redoes them):
-
-| # | Stage      | What happens                                                       |
-|---|------------|--------------------------------------------------------------------|
-| 1 | `audio`    | `ffmpeg` extracts a 16 kHz mono WAV                                 |
-| 2 | `transcribe` | Whisper (mlx on macOS / faster-whisper elsewhere) with timecodes — one pass per candidate language, merged |
-| 3 | `frames`   | sample thumbnails, keep only keyframes where the screen changed    |
-| 4 | `ocr`      | macOS Vision / tesseract reads each keyframe, diffs new on-screen text |
-| 5 | `bundle`   | assembles `artifacts/`: transcript, timeline, screenshots          |
-
-If OCR finds no readable text (low-res recording, or `--ocr none`), screenshots are still selected — evenly across the moments the screen changed — so a multimodal model can read them itself.
-
-### Multilingual meetings
-
-Whisper's built-in auto-detect samples only the **first 30 seconds** — useless for meetings that mix languages (a Ukrainian standup with English terms and Russian asides is an everyday case). `bm` doesn't guess:
-
-When no language is pinned, it transcribes the whole recording **once per language** in `--langs` (default `uk,ru,en`), then merges: the timeline is covered by the segments from whichever pass Whisper was most confident about (`avg_logprob`) at that point. This survives *any* language mixing — down to the language switching between neighboring sentences — because every stretch of audio was decoded in every candidate language and the best decode wins locally. Hallucinated segments (Whisper's classic silence artifacts) are filtered by the standard `no_speech`/`logprob` heuristic.
-
-The cost is proportional: 3 languages = 3 transcription passes. Each pass is cached separately (`pass_uk.json`, …), so an interrupted run resumes without redoing finished passes. If you know the meeting's language, pin it — `--lang uk` — for a single pass. Adjust the candidate set with `--langs uk,en` etc.
-
-In multilingual recordings every transcript line carries its language tag (`[uk]`, `[en]`, `[ru]`), and the header of `timeline.md` reports the language share.
-
-## One folder per video
-
-Every recording gets **its own working folder** — outputs never collide or overwrite each other.
-
-By default the folder is `runs/<video-name>/`:
-
-```
-runs/
-├── standup-2026-08-20/
-│   ├── audio.wav
-│   ├── transcript.json
-│   ├── keyframes.json
-│   ├── thumbs/ · frames/
-│   └── artifacts/          <- the interface: hand this folder to your LLM
-│       ├── transcript.md   — timestamped speech
-│       ├── timeline.md     — speech + new on-screen text + silences, merged
-│       └── screens/ · screens_index.md
-└── onboarding-call/
-    └── ...
-```
-
-- Change the root with `--out-root some/dir` (folders become `some/dir/<video-name>/`).
-- Pin an exact folder with `--out path/to/dir` (overrides the per-video naming).
-
-Because the folder name is derived from the video, re-running the **same** recording reuses its cache; a **different** recording lands in a **different** folder.
-
-## Install
-
-Requires **Python 3.12+** and **ffmpeg/ffprobe** on your `PATH`.
-
-### As a global `bm` command (recommended)
-
-```bash
-uv tool install git+https://github.com/GivenFLY/better-meeting.git
-bm meeting.mp4
-```
-
-On Linux/Windows add the faster-whisper extra:
-
-```bash
-uv tool install "better-meeting[faster] @ git+https://github.com/GivenFLY/better-meeting.git"
-```
-
-Update later with `uv tool upgrade better-meeting`, remove with `uv tool uninstall better-meeting`.
-
-### From a clone (for development)
-
-```bash
-git clone https://github.com/GivenFLY/better-meeting.git
+git clone https://github.com/kremnyi/better-meeting.git
 cd better-meeting
-
-# with uv
-uv sync
-uv run bm meeting.mp4
-
-# or with pip
-pip install -e .
-bm meeting.mp4
+./scripts/build-app.sh
+open "dist/Better Meeting.app"
 ```
 
-### System dependencies
+Move `Better Meeting.app` from `dist` to `/Applications` if you want to keep it
+installed. A signed and notarized release is not available yet.
 
-- **ffmpeg / ffprobe** — required (audio extraction, frame sampling, duration).
-- **macOS** — Whisper via `mlx-whisper` and OCR via the built-in Vision framework work out of the box.
-- **Linux / Windows** — install the faster-whisper backend and tesseract:
-  ```bash
-  pip install -e ".[faster]"   # faster-whisper ASR backend
-  # + tesseract-ocr from your package manager, then run with: --ocr tesseract
-  ```
+## Permissions and privacy
 
-## Usage
+The first recording asks for **Screen & System Audio Recording** and
+**Microphone** access. macOS may require Better Meeting to be reopened after
+screen-recording access is granted.
+
+Recording and transcription run locally. The app does not upload meetings or
+send them to an LLM. Network access is only needed when WhisperKit downloads its
+speech model for the first time.
+
+Development builds are ad-hoc signed by default. Because macOS ties recording
+permission to an app's signature, permissions may need to be granted again after
+each ad-hoc rebuild. Use a stable keychain identity to avoid that:
 
 ```bash
-bm extract RECORDING.mp4 [options]   # `bm RECORDING.mp4` is the same thing
+BETTER_MEETING_SIGNING_IDENTITY="Apple Development: Your Name (TEAMID)" \
+    ./scripts/build-app.sh
 ```
 
-| Command                  | What it does                                          |
-|--------------------------|-------------------------------------------------------|
-| `bm extract VIDEO`       | full pipeline → `runs/<name>/artifacts/`              |
-| `bm frame VIDEO -t T`    | one frame at a timecode                               |
-| `bm ocr VIDEO -t T`      | OCR a frame at a timecode (or an existing image)      |
-| `bm transcript VIDEO`    | transcript of a time range, any Whisper options       |
-| `bm agents`              | print the agent guide ([AGENTS.md](AGENTS.md))        |
+## Development
 
-Common `extract` options:
-
-| Option                 | Default        | Meaning                                             |
-|------------------------|----------------|-----------------------------------------------------|
-| `--out-root DIR`       | `runs`         | root that holds one folder per video                |
-| `--out DIR`            | *(auto)*       | exact working folder (overrides per-video naming)   |
-| `--force`              | off            | redo every stage, ignore cache                      |
-| `--only STAGE`         | —              | stop after `audio`/`transcribe`/`frames`/`ocr`/`bundle` |
-| `--lang uk\|en\|ru\|auto` | `auto`      | pin one language (single pass) or `auto` (pass per `--langs`, best merge) |
-| `--langs L1,L2,...`    | `uk,ru,en`     | candidate languages tried when `--lang auto`        |
-| `--asr-model NAME`     | `large-v3-turbo` | Whisper model                                     |
-| `--frame-interval SEC` | `2.0`          | thumbnail sampling interval                          |
-| `--max-shots N`        | `30`           | how many screenshots to keep in `artifacts/`        |
-| `--ocr vision\|tesseract\|none` | `vision` on macOS | OCR backend                            |
-| `-O KEY=VALUE`         | —              | any Whisper option for transcription, repeatable (e.g. `-O initial_prompt="project terms"`) |
-
-Run `bm --help` (or `bm extract --help`) for the full list.
-
-### Examples
+The app is a Swift Package with a single SwiftUI executable target.
 
 ```bash
-# Ukrainian meeting
-bm standup.mov --lang uk
-
-# low-res recording where OCR is hopeless — skip it, keep the screenshots
-bm call-360p.mp4 --ocr none
-
-# fix domain vocabulary with a glossary hint
-bm demo.mkv -O initial_prompt="service names, staging, rollout"
-
-# batch a directory — each file gets its own folder under runs/
-for f in recordings/*.mp4; do bm "$f"; done
-
-# custom output root, keep more screenshots
-bm demo.mkv --out-root out --max-shots 50
+swift build --product BetterMeeting
+swift run BetterMeeting
 ```
 
-## Point queries — tooling for agents
+`./scripts/build-app.sh` produces the complete `.app` bundle in `dist/`, including
+the app icon, menu bar assets, license notices, and code signature.
 
-Besides the full pipeline, `bm` has point commands so an LLM agent can drill into a specific moment without re-running anything. All print their result to stdout (logs go to stderr):
+## Project origin
 
-```bash
-# grab one frame at a timecode (prints the file path)
-bm frame meeting.mp4 -t 12:40
-# -> runs/meeting/frames_at/00-12-40.jpg
+This repository is a native macOS adaptation of
+[GivenFLY/better-meeting](https://github.com/GivenFLY/better-meeting). The
+original project extracts transcripts, on-screen text, and screenshots from an
+existing recording. This fork keeps its local-first, one-folder-per-meeting
+idea, but focuses the current codebase on recording and transcription through a
+native menu bar app.
 
-# OCR a frame at a timecode (prints the recognized text)
-bm ocr meeting.mp4 -t 12:40
-
-# OCR an existing image (e.g. a screenshot from artifacts/screens/)
-bm ocr runs/meeting/artifacts/screens/007_00-14-10.jpg
-
-# re-transcribe a time range in a specific language
-bm transcript meeting.mp4 --from 10:00 --to 12:30 --lang en
-
-# ...with any whisper option passed through, and JSON output
-bm transcript meeting.mp4 --from 10:00 --to 12:30 --lang uk \
-    -O temperature=0.2 -O initial_prompt="назви сервісів, реліз, стейджинг" --json
-```
-
-Timecodes accept `SS`, `MM:SS`, or `HH:MM:SS`. The typical agent loop: read `timeline.md`, spot a suspicious stretch, pull the exact frame with `bm frame`, or re-run just that stretch with `bm transcript` — a different language, a domain `initial_prompt` to fix mangled terms, whatever Whisper accepts via repeatable `-O key=value` (values parse as JSON).
-
-`bm transcript` results are **cached by their full parameter set** (range + language + model + backend + options) under `runs/<name>/transcripts_at/` — repeating the same query returns instantly; `--force` recomputes.
-
-It also **reuses the full pipeline's work**: if the video already went through `bm extract` with the same model, backend and `-O` options, the range is sliced straight out of the cached passes — a pinned `--lang` serves from that language's pass, no `--lang` serves from the merged transcript. No ASR runs at all. Different options or `--force` trigger a real re-run.
-
-Frames land under `frames_at/`; use `-o out.jpg` to override.
-
-## Talking to the video
-
-`artifacts/` is the whole interface. Tell your agent — *"better-meeting is installed as `bm`; run `bm agents` and follow that guide to work with `<video>`"*. `bm agents` prints the full agent manual ([AGENTS.md](AGENTS.md)): how to extract, what the artifacts mean, and the point commands for drilling into moments. Then just ask anything: "what did we decide about the release?", "what command did they run at 12:40?", "summarize each person's status".
+The original implementation remains available in the upstream repository and
+in this fork's Git history.
 
 ## License
 
-[Apache 2.0](LICENSE)
+Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for
+upstream attribution and [ThirdPartyNotices.md](ThirdPartyNotices.md) for
+WhisperKit notices.
