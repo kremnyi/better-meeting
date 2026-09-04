@@ -5,6 +5,14 @@ enum BrandAssets {
     static let applicationIcon: NSImage = loadImage(named: "AppIconMaster")
         ?? NSImage(systemSymbolName: "waveform.badge.mic", accessibilityDescription: nil)!
 
+    static let menuBarIcon: NSImage = {
+        let image = loadImage(named: "MenuBarIconTemplate")
+            ?? NSImage(systemSymbolName: "waveform", accessibilityDescription: nil)!
+        image.isTemplate = true
+        image.size = NSSize(width: 18, height: 18)
+        return image
+    }()
+
     private static func loadImage(named name: String) -> NSImage? {
         guard let url = Bundle.main.url(forResource: name, withExtension: "png") else {
             return nil
