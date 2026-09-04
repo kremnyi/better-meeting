@@ -6,34 +6,27 @@ struct MenuBarControlView: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 11) {
-                ApplicationIcon(size: 38)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Better Meeting")
-                        .font(.headline)
-                    Text(model.state.label)
-                        .font(.caption)
-                        .foregroundStyle(model.state.tint)
-                }
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Better Meeting")
+                    .font(.headline)
 
                 Spacer()
+
+                Label(model.state.label, systemImage: model.state.symbol)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(model.state.tint)
             }
 
-            Divider()
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.elapsedText)
+                    .font(.system(size: 30, weight: .medium, design: .monospaced))
+                    .monospacedDigit()
 
-            HStack(spacing: 14) {
-                CaptureMark(state: model.state, size: 60)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(model.elapsedText)
-                        .font(.title2.monospacedDigit())
-                    Text(model.statusText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
+                Text(model.statusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
 
             if model.state == .complete {
@@ -55,14 +48,15 @@ struct MenuBarControlView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(model.state == .recording ? .signalCoral : .accentColor)
+                .controlSize(.large)
+                .tint(.signalCoral)
                 .disabled(!model.canPerformPrimaryAction)
             }
 
             Divider()
 
             HStack {
-                Button("Show Better Meeting") {
+                Button("Open Better Meeting") {
                     openWindow(id: "main")
                     NSApp.activate(ignoringOtherApps: true)
                 }
@@ -76,7 +70,7 @@ struct MenuBarControlView: View {
             .buttonStyle(.plain)
             .font(.callout)
         }
-        .padding(18)
-        .frame(width: 330)
+        .padding(16)
+        .frame(width: 300)
     }
 }
