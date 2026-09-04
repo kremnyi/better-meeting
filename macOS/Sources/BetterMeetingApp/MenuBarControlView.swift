@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MenuBarControlView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var isHistoryExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -31,6 +32,9 @@ struct MenuBarControlView: View {
             .padding(.vertical, 10)
         }
         .frame(width: 340)
+        .onAppear {
+            model.refreshHistory()
+        }
     }
 
     private var header: some View {
@@ -76,6 +80,83 @@ struct MenuBarControlView: View {
             primaryActionButton
 
             captureSummary
+
+            Divider()
+
+            historySection
+        }
+    }
+
+    private var historySection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeOut(duration: 0.16)) {
+                    isHistoryExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Text("Recent transcripts")
+                        .font(.callout.weight(.medium))
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(isHistoryExpanded ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(isHistoryExpanded ? "Expanded" : "Collapsed")
+
+            if isHistoryExpanded {
+                if model.transcriptionHistory.isEmpty {
+                    Text("Completed transcripts will appear here.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 10)
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(model.transcriptionHistory) { item in
+                            Divider()
+                                .padding(.vertical, 8)
+
+                            historyRow(item)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func historyRow(_ item: MeetingHistoryItem) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.callout)
+                    .lineLimit(1)
+
+                HStack(spacing: 4) {
+                    Text(item.recordedAt, format: .dateTime.month(.abbreviated).day().hour().minute())
+                    Text("·")
+                    Text(Timecode.string(item.duration))
+                        .monospacedDigit()
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                model.openHistoryFolder(item)
+            } label: {
+                Image(systemName: "folder")
+            }
+            .buttonStyle(.borderless)
+            .help("Show in Finder")
+            .accessibilityLabel("Show \(item.title) in Finder")
         }
     }
 

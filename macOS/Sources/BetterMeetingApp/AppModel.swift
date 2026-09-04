@@ -61,6 +61,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var privacyPermission: PrivacyPermission?
     @Published private(set) var processingFraction: Double?
     @Published private(set) var processingPhase: ProcessingPhase?
+    @Published private(set) var transcriptionHistory: [MeetingHistoryItem] = []
 
     private let recorder = MeetingRecorder()
     private let transcriber = LocalTranscriber()
@@ -74,6 +75,7 @@ final class AppModel: ObservableObject {
         recorder.onUnexpectedStop = { [weak self] error in
             self?.captureStoppedExternally(with: error)
         }
+        refreshHistory()
     }
 
     var elapsedText: String {
@@ -154,7 +156,16 @@ final class AppModel: ObservableObject {
 
         if panel.runModal() == .OK, let url = panel.url {
             outputRoot = url
+            refreshHistory()
         }
+    }
+
+    func refreshHistory() {
+        transcriptionHistory = MeetingArtifacts.recentTranscriptions(in: outputRoot)
+    }
+
+    func openHistoryFolder(_ item: MeetingHistoryItem) {
+        NSWorkspace.shared.open(item.folderURL)
     }
 
     func openCompletedFolder() {
@@ -317,6 +328,7 @@ final class AppModel: ObservableObject {
             )
 
             completedFolder = folder
+            refreshHistory()
             state = .complete
             statusText = "Video and transcript are ready."
             processingFraction = nil

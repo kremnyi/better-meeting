@@ -17,6 +17,15 @@ struct MeetingManifest: Codable {
     let segmentCount: Int
 }
 
+struct MeetingHistoryItem: Identifiable, Equatable, Sendable {
+    let title: String
+    let recordedAt: Date
+    let duration: TimeInterval
+    let folderURL: URL
+
+    var id: URL { folderURL }
+}
+
 enum MeetingArtifacts {
     static func createDirectory(in root: URL, title: String, recordedAt: Date) throws -> URL {
         try FileManager.default.createDirectory(
@@ -83,6 +92,41 @@ enum MeetingArtifacts {
             to: folder.appendingPathComponent("metadata.json"),
             options: .atomic
         )
+    }
+
+    static func recentTranscriptions(in root: URL, limit: Int = 5) -> [MeetingHistoryItem] {
+        guard limit > 0 else { return [] }
+
+        let folders = (try? FileManager.default.contentsOfDirectory(
+            at: root,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        return folders.compactMap { folder in
+            let values = try? folder.resourceValues(forKeys: [.isDirectoryKey])
+            guard values?.isDirectory == true else { return nil }
+
+            let metadataURL = folder.appendingPathComponent("metadata.json")
+            let transcriptURL = folder.appendingPathComponent("transcript.md")
+            guard
+                FileManager.default.fileExists(atPath: transcriptURL.path),
+                let data = try? Data(contentsOf: metadataURL),
+                let manifest = try? decoder.decode(MeetingManifest.self, from: data)
+            else { return nil }
+
+            return MeetingHistoryItem(
+                title: manifest.title,
+                recordedAt: manifest.recordedAt,
+                duration: manifest.duration,
+                folderURL: folder
+            )
+        }
+        .sorted { $0.recordedAt > $1.recordedAt }
+        .prefix(limit)
+        .map { $0 }
     }
 
     static func transcriptMarkdown(
