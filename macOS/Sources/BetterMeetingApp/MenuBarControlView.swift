@@ -83,7 +83,6 @@ struct MenuBarControlView: View {
 
                 TextField("e.g. Product sync", text: $model.meetingTitle)
                     .textFieldStyle(.roundedBorder)
-                    .disabled(model.state.locksInputs)
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -97,7 +96,6 @@ struct MenuBarControlView: View {
                     Button("Choose…") {
                         model.chooseOutputFolder()
                     }
-                    .disabled(model.state.locksInputs)
                 }
 
                 Label {

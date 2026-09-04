@@ -11,10 +11,6 @@ enum AppState: Equatable {
     case processing
     case complete
     case failed
-
-    var locksInputs: Bool {
-        self == .preparing || self == .recording || self == .processing
-    }
 }
 
 @MainActor
@@ -56,10 +52,6 @@ final class AppModel: ObservableObject {
 
     var primaryButtonSymbol: String {
         state == .recording ? "stop.fill" : "record.circle"
-    }
-
-    var canPerformPrimaryAction: Bool {
-        state == .idle || state == .recording || state == .failed
     }
 
     var captureAccessText: String {
