@@ -22,9 +22,9 @@ enum AudioExtractor {
         exporter.shouldOptimizeForNetworkUse = false
         progressHandler(0)
         let progressTask = Task {
-            while !Task.isCancelled {
-                progressHandler(Double(exporter.progress))
-                try? await Task.sleep(for: .milliseconds(200))
+            for await state in exporter.states(updateInterval: 0.2) {
+                guard case .exporting(let progress) = state else { continue }
+                progressHandler(progress.fractionCompleted)
             }
         }
         defer { progressTask.cancel() }

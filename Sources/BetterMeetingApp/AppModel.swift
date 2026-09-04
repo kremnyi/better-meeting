@@ -162,10 +162,6 @@ final class AppModel: ObservableObject {
         transcriptionHistory = MeetingArtifacts.recentTranscriptions(in: outputRoot)
     }
 
-    func openHistoryFolder(_ item: MeetingHistoryItem) {
-        NSWorkspace.shared.open(item.folderURL)
-    }
-
     func openMeetingsFolder() {
         if !FileManager.default.fileExists(atPath: outputRoot.path) {
             try? FileManager.default.createDirectory(
@@ -174,16 +170,6 @@ final class AppModel: ObservableObject {
             )
         }
         NSWorkspace.shared.open(outputRoot)
-    }
-
-    func openCompletedFolder() {
-        guard let completedFolder else { return }
-        NSWorkspace.shared.open(completedFolder)
-    }
-
-    func openPrivacySettings() {
-        guard let url = privacyPermission?.settingsURL else { return }
-        NSWorkspace.shared.open(url)
     }
 
     private func restartApplication() {

@@ -148,7 +148,7 @@ struct MenuBarControlView: View {
             Spacer(minLength: 8)
 
             Button {
-                model.openHistoryFolder(item)
+                NSWorkspace.shared.open(item.folderURL)
             } label: {
                 Image(systemName: "folder")
             }
@@ -304,13 +304,17 @@ struct MenuBarControlView: View {
                 HStack(spacing: 10) {
                     if model.privacyPermission != nil {
                         Button("Open System Settings") {
-                            model.openPrivacySettings()
+                            if let url = model.privacyPermission?.settingsURL {
+                                NSWorkspace.shared.open(url)
+                            }
                         }
                     }
 
                     if model.completedFolder != nil {
                         Button("Show saved files") {
-                            model.openCompletedFolder()
+                            if let folder = model.completedFolder {
+                                NSWorkspace.shared.open(folder)
+                            }
                         }
                     }
                 }

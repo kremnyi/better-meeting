@@ -29,7 +29,6 @@ rm -rf "$app_dir"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
 cp "$package_dir/App/Info.plist" "$app_dir/Contents/Info.plist"
 cp "$build_dir/release/BetterMeeting" "$app_dir/Contents/MacOS/BetterMeeting"
-cp "$package_dir/Assets/AppIconMaster.png" "$app_dir/Contents/Resources/AppIconMaster.png"
 
 rm -rf "$iconset_dir"
 mkdir -p "$iconset_dir"
