@@ -57,22 +57,23 @@ struct CaptureMark: View {
     private var isRecording: Bool { state == .recording }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack {
             RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
                 .fill(Color.brandGraphite)
 
-            HStack(alignment: .center, spacing: size * 0.08) {
+            HStack(alignment: .center, spacing: size * 0.07) {
                 bar(height: size * 0.24)
                 bar(height: size * 0.44)
                 bar(height: size * 0.29)
             }
-            .offset(y: -size * 0.04)
 
-            Circle()
-                .fill(isRecording ? Color.signalCoral : Color.warmPaper.opacity(0.82))
-                .frame(width: size * 0.18, height: size * 0.18)
-                .padding(size * 0.14)
-                .symbolEffect(.pulse, options: .repeating, isActive: isRecording)
+            if isRecording {
+                Circle()
+                    .fill(Color.signalCoral)
+                    .frame(width: size * 0.15, height: size * 0.15)
+                    .offset(x: size * 0.33, y: size * 0.33)
+                    .symbolEffect(.pulse, options: .repeating)
+            }
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
