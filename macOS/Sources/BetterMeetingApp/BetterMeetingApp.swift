@@ -20,7 +20,8 @@ struct BetterMeetingApp: App {
             MenuBarControlView()
                 .environmentObject(model)
         } label: {
-            Image(nsImage: BrandAssets.menuBarIcon)
+            Image(systemName: "waveform")
+                .symbolRenderingMode(.monochrome)
                 .accessibilityLabel("Better Meeting")
         }
         .menuBarExtraStyle(.window)

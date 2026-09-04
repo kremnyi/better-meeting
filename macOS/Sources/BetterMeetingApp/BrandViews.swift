@@ -5,25 +5,6 @@ enum BrandAssets {
     static let applicationIcon: NSImage = loadImage(named: "AppIconMaster")
         ?? NSImage(systemSymbolName: "waveform.badge.mic", accessibilityDescription: nil)!
 
-    static let menuBarIcon: NSImage = {
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
-            NSColor.black.setFill()
-
-            for bar in [
-                NSRect(x: 1.75, y: 5.5, width: 2.5, height: 7),
-                NSRect(x: 5.75, y: 1.5, width: 2.5, height: 15),
-                NSRect(x: 9.75, y: 4, width: 2.5, height: 10),
-            ] {
-                NSBezierPath(roundedRect: bar, xRadius: 1.25, yRadius: 1.25).fill()
-            }
-
-            NSBezierPath(ovalIn: NSRect(x: 14, y: 1.75, width: 4, height: 4)).fill()
-            return true
-        }
-        image.isTemplate = true
-        return image
-    }()
-
     private static func loadImage(named name: String) -> NSImage? {
         guard let url = Bundle.main.url(forResource: name, withExtension: "png") else {
             return nil
