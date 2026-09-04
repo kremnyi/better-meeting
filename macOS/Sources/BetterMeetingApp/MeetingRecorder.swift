@@ -5,7 +5,9 @@ import Foundation
 import ScreenCaptureKit
 
 @MainActor
-final class MeetingRecorder: NSObject, SCRecordingOutputDelegate {
+final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
+    var onUnexpectedStop: ((Error?) -> Void)?
+
     private var stream: SCStream?
     private var recordingOutput: SCRecordingOutput?
     private var startContinuation: CheckedContinuation<Void, Error>?
@@ -79,7 +81,7 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate {
             configuration: outputConfiguration,
             delegate: self
         )
-        let stream = SCStream(filter: filter, configuration: configuration, delegate: nil)
+        let stream = SCStream(filter: filter, configuration: configuration, delegate: self)
         try stream.addRecordingOutput(recordingOutput)
 
         self.stream = stream
@@ -120,7 +122,11 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate {
 
     nonisolated func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
         Task { @MainActor in
-            finishStop(with: .success(()))
+            if stopContinuation != nil {
+                finishStop(with: .success(()))
+            } else {
+                finishUnexpectedStop(with: nil)
+            }
         }
     }
 
@@ -131,8 +137,26 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate {
         Task { @MainActor in
             if startContinuation != nil {
                 finishStart(with: .failure(error))
-            } else {
+            } else if stopContinuation != nil {
                 finishStop(with: .failure(error))
+            } else {
+                finishUnexpectedStop(with: error)
+            }
+        }
+    }
+
+    nonisolated func stream(_ stream: SCStream, didStopWithError error: any Error) {
+        Task { @MainActor in
+            if startContinuation != nil {
+                finishStart(with: .failure(error))
+            } else if stopContinuation != nil {
+                finishStop(with: .failure(error))
+            } else {
+                let nsError = error as NSError
+                let code = SCStreamError.Code(rawValue: nsError.code)
+                let wasStoppedIntentionally = nsError.domain == SCStreamErrorDomain
+                    && (code == .userStopped || code == .systemStoppedStream)
+                finishUnexpectedStop(with: wasStoppedIntentionally ? nil : error)
             }
         }
     }
@@ -151,6 +175,12 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate {
         stopContinuation = nil
         cleanUp()
         continuation.resume(with: result)
+    }
+
+    private func finishUnexpectedStop(with error: Error?) {
+        guard stream != nil else { return }
+        cleanUp()
+        onUnexpectedStop?(error)
     }
 
     private func cleanUp() {

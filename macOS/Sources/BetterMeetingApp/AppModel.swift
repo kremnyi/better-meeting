@@ -34,6 +34,9 @@ final class AppModel: ObservableObject {
     init() {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         outputRoot = documents.appendingPathComponent("Better Meetings", isDirectory: true)
+        recorder.onUnexpectedStop = { [weak self] error in
+            self?.captureStoppedExternally(with: error)
+        }
     }
 
     var elapsedText: String {
@@ -197,53 +200,76 @@ final class AppModel: ObservableObject {
     }
 
     private func stopRecording() {
+        beginProcessing(status: "Finalizing the recording…")
+        Task {
+            await finishRecording(stopCapture: true)
+        }
+    }
+
+    private func captureStoppedExternally(with error: Error?) {
+        guard state == .recording else { return }
+
+        if let error {
+            fail(error)
+            return
+        }
+
+        beginProcessing(status: "Stopped from macOS. Finalizing the recording…")
+        Task {
+            await finishRecording(stopCapture: false)
+        }
+    }
+
+    private func beginProcessing(status: String) {
         if let recordedAt {
             elapsed = Date().timeIntervalSince(recordedAt)
         }
         stopTimer()
         state = .processing
-        statusText = "Saving the video…"
+        statusText = status
         processingFraction = nil
+    }
 
-        Task {
-            do {
-                guard let folder = activeFolder, let recordedAt else {
-                    throw AppError.missingRecording
-                }
-
-                try await recorder.stop()
-
-                let recordingURL = folder.appendingPathComponent("recording.mp4")
-                let audioURL = folder.appendingPathComponent("audio.m4a")
-                statusText = "Preparing audio…"
-                try await AudioExtractor.extract(from: recordingURL, to: audioURL)
-
-                let segments = try await transcriber.transcribe(audioURL: audioURL) { [weak self] progress in
-                    Task { @MainActor [weak self] in
-                        self?.updateTranscriptionProgress(progress)
-                    }
-                }
-
-                statusText = "Writing transcript.md…"
-                processingFraction = nil
-                try MeetingArtifacts.write(
-                    title: meetingTitle,
-                    recordedAt: recordedAt,
-                    duration: elapsed,
-                    segments: segments,
-                    to: folder
-                )
-
-                completedFolder = folder
-                state = .complete
-                statusText = "Video and transcript are ready."
-                processingFraction = nil
-            } catch {
-                if let activeFolder {
-                    completedFolder = activeFolder
-                }
-                fail(error)
+    private func finishRecording(stopCapture: Bool) async {
+        do {
+            guard let folder = activeFolder, let recordedAt else {
+                throw AppError.missingRecording
             }
+
+            if stopCapture {
+                try await recorder.stop()
+            }
+
+            let recordingURL = folder.appendingPathComponent("recording.mp4")
+            let audioURL = folder.appendingPathComponent("audio.m4a")
+            statusText = "Preparing audio…"
+            try await AudioExtractor.extract(from: recordingURL, to: audioURL)
+
+            let segments = try await transcriber.transcribe(audioURL: audioURL) { [weak self] progress in
+                Task { @MainActor [weak self] in
+                    self?.updateTranscriptionProgress(progress)
+                }
+            }
+
+            statusText = "Writing transcript.md…"
+            processingFraction = nil
+            try MeetingArtifacts.write(
+                title: meetingTitle,
+                recordedAt: recordedAt,
+                duration: elapsed,
+                segments: segments,
+                to: folder
+            )
+
+            completedFolder = folder
+            state = .complete
+            statusText = "Video and transcript are ready."
+            processingFraction = nil
+        } catch {
+            if let activeFolder {
+                completedFolder = activeFolder
+            }
+            fail(error)
         }
     }
 
