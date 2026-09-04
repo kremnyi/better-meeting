@@ -20,7 +20,7 @@ final class AppModel: ObservableObject {
     @Published var meetingTitle = ""
     @Published private(set) var state: AppState = .idle
     @Published private(set) var elapsed: TimeInterval = 0
-    @Published private(set) var statusText = "Choose a folder, then start recording."
+    @Published private(set) var statusText = "Ready to record your main display and audio."
     @Published private(set) var errorMessage: String?
     @Published private(set) var completedFolder: URL?
     @Published private(set) var outputRoot: URL
@@ -44,8 +44,10 @@ final class AppModel: ObservableObject {
         switch state {
         case .recording: "Stop recording"
         case .complete: "Recording complete"
-        case .preparing, .processing: "Please wait"
-        case .idle, .failed: "Start recording"
+        case .preparing: "Preparing…"
+        case .processing: "Transcribing…"
+        case .idle: "Start recording"
+        case .failed: "Try again"
         }
     }
 
@@ -89,7 +91,7 @@ final class AppModel: ObservableObject {
         stopTimer()
         elapsed = 0
         state = .idle
-        statusText = "Choose a folder, then start recording."
+        statusText = "Ready to record your main display and audio."
         errorMessage = nil
         completedFolder = nil
         activeFolder = nil
@@ -101,7 +103,7 @@ final class AppModel: ObservableObject {
         stopTimer()
         elapsed = 0
         state = .preparing
-        statusText = "Requesting screen and microphone access…"
+        statusText = "Checking screen and microphone access…"
         errorMessage = nil
         completedFolder = nil
         activeFolder = nil
@@ -123,7 +125,7 @@ final class AppModel: ObservableObject {
                 activeFolder = folder
                 recordedAt = startedAt
                 state = .recording
-                statusText = "Recording the main display, meeting audio, and microphone."
+                statusText = "Recording main display, system audio, and microphone."
                 startTimer(from: startedAt)
             } catch {
                 fail(error)
@@ -137,7 +139,7 @@ final class AppModel: ObservableObject {
         }
         stopTimer()
         state = .processing
-        statusText = "Finishing the recording…"
+        statusText = "Saving the video…"
 
         Task {
             do {
@@ -149,13 +151,13 @@ final class AppModel: ObservableObject {
 
                 let recordingURL = folder.appendingPathComponent("recording.mp4")
                 let audioURL = folder.appendingPathComponent("audio.m4a")
-                statusText = "Preparing audio for transcription…"
+                statusText = "Preparing audio…"
                 try await AudioExtractor.extract(from: recordingURL, to: audioURL)
 
-                statusText = "Transcribing locally. The first run downloads the speech model…"
+                statusText = "Transcribing on this Mac. First use downloads the speech model…"
                 let segments = try await transcriber.transcribe(audioURL: audioURL)
 
-                statusText = "Writing the meeting transcript…"
+                statusText = "Writing transcript.md…"
                 try MeetingArtifacts.write(
                     title: meetingTitle,
                     recordedAt: recordedAt,
@@ -166,7 +168,7 @@ final class AppModel: ObservableObject {
 
                 completedFolder = folder
                 state = .complete
-                statusText = "The recording and Markdown transcript are ready."
+                statusText = "Video and transcript are ready."
             } catch {
                 if let activeFolder {
                     completedFolder = activeFolder
@@ -192,7 +194,7 @@ final class AppModel: ObservableObject {
     private func fail(_ error: Error) {
         stopTimer()
         state = .failed
-        statusText = "The recording could not be completed."
+        statusText = "Couldn’t finish this recording."
         errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
     }
 }

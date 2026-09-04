@@ -78,7 +78,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 92, alignment: .leading)
 
-                TextField("Product sync", text: $model.meetingTitle)
+                TextField("e.g. Product sync", text: $model.meetingTitle)
                     .textFieldStyle(.roundedBorder)
                     .font(.body)
                     .disabled(model.state.locksInputs)
@@ -160,7 +160,7 @@ struct ContentView: View {
             .buttonStyle(.plain)
             .disabled(!model.canPerformPrimaryAction)
             .opacity(model.canPerformPrimaryAction ? 1 : 0.46)
-            .keyboardShortcut(.space, modifiers: [.command])
+            .keyboardShortcut("r", modifiers: [.command, .shift])
         }
         .padding(24)
     }
@@ -171,7 +171,7 @@ struct ContentView: View {
 
             Spacer()
 
-            Text("⌘ Space")
+            Text("⌘⇧R in Better Meeting")
                 .font(.caption.monospaced())
                 .foregroundStyle(.tertiary)
         }
@@ -182,7 +182,10 @@ struct ContentView: View {
     }
 
     private var privacyNote: some View {
-        Label("Video and transcript stay on this Mac.", systemImage: "lock.shield")
+        Label(
+            "Video and transcript stay on this Mac. First use downloads the speech model.",
+            systemImage: "lock.shield"
+        )
         .font(.callout)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 5)
