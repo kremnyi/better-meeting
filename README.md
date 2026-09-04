@@ -6,6 +6,14 @@
 
 Works for any kind of recording: a daily standup that's all talk, a technical demo full of screen changes, a workshop, a plain call.
 
+## Native macOS recorder
+
+The repository also contains a SwiftUI recorder for macOS 15 and newer. It
+captures the main display, system audio, and microphone, transcribes locally,
+and creates a meeting folder with the recording and `transcript.md`.
+
+See [`macOS/README.md`](macOS/README.md) for build and usage instructions.
+
 ```bash
 bm meeting.mp4
 # -> runs/meeting/artifacts/  (transcript.md, timeline.md, screens/)
