@@ -107,6 +107,16 @@ final class AppModel: ObservableObject {
         NSWorkspace.shared.open(completedFolder)
     }
 
+    func openCompletedTranscript() {
+        guard let completedFolder else { return }
+        let transcript = completedFolder.appendingPathComponent("transcript.md")
+        if FileManager.default.fileExists(atPath: transcript.path) {
+            NSWorkspace.shared.open(transcript)
+        } else {
+            NSWorkspace.shared.open(completedFolder)
+        }
+    }
+
     func openPrivacySettings() {
         guard let url = privacyPermission?.settingsURL else { return }
         NSWorkspace.shared.open(url)

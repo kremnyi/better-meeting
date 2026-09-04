@@ -128,6 +128,34 @@ struct ContentView: View {
 
             Spacer(minLength: 16)
 
+            primaryControl
+        }
+        .padding(24)
+    }
+
+    @ViewBuilder
+    private var primaryControl: some View {
+        if model.state == .preparing || model.state == .processing {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(model.primaryButtonTitle)
+                    .font(.headline)
+            }
+            .foregroundStyle(.secondary)
+            .frame(minWidth: 154, minHeight: 44)
+        } else if model.state == .complete {
+            Button {
+                model.openCompletedTranscript()
+            } label: {
+                Label("Open transcript", systemImage: "doc.plaintext")
+                    .font(.headline)
+                    .padding(.horizontal, 17)
+                    .frame(minWidth: 154, minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.brandGraphite)
+        } else {
             Button {
                 model.primaryAction()
             } label: {
@@ -158,11 +186,8 @@ struct ContentView: View {
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain)
-            .disabled(!model.canPerformPrimaryAction)
-            .opacity(model.canPerformPrimaryAction ? 1 : 0.46)
             .keyboardShortcut("r", modifiers: [.command, .shift])
         }
-        .padding(24)
     }
 
     private var captureSummary: some View {
@@ -221,10 +246,9 @@ struct ContentView: View {
 
     private var completedActions: some View {
         HStack(spacing: 10) {
-            Button("Open meeting folder") {
+            Button("Show meeting folder") {
                 model.openCompletedFolder()
             }
-            .buttonStyle(.borderedProminent)
 
             Button("Record another meeting") {
                 model.reset()

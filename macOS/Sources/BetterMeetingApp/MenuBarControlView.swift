@@ -29,10 +29,19 @@ struct MenuBarControlView: View {
                     .lineLimit(2)
             }
 
-            if model.state == .complete {
+            if model.state == .preparing || model.state == .processing {
+                HStack(spacing: 9) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(model.primaryButtonTitle)
+                        .font(.callout.weight(.medium))
+                }
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 32)
+            } else if model.state == .complete {
                 HStack {
-                    Button("Open folder") {
-                        model.openCompletedFolder()
+                    Button("Open transcript") {
+                        model.openCompletedTranscript()
                     }
                     .buttonStyle(.borderedProminent)
 
@@ -50,7 +59,6 @@ struct MenuBarControlView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .tint(.signalCoral)
-                .disabled(!model.canPerformPrimaryAction)
             }
 
             Divider()

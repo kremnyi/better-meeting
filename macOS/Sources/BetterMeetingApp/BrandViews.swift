@@ -92,10 +92,14 @@ struct StatePill: View {
     var body: some View {
         Label(state.label, systemImage: state.symbol)
             .font(.callout.weight(.medium))
-            .foregroundStyle(state.tint)
+            .foregroundStyle(state == .idle ? Color.primary : state.tint)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(state.tint.opacity(0.10), in: Capsule())
+            .background(Color(nsColor: .controlBackgroundColor), in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.72), lineWidth: 1)
+            }
     }
 }
 
