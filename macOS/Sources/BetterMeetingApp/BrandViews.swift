@@ -12,11 +12,13 @@ enum BrandAssets {
         for filename in ["MenuBarIconTemplate.png", "MenuBarIconTemplate@2x.png"] {
             guard
                 let url = Bundle.main.resourceURL?.appendingPathComponent(filename),
-                let representation = NSBitmapImageRep(contentsOf: url)
+                let source = NSImage(contentsOf: url)
             else { continue }
 
-            representation.size = pointSize
-            image.addRepresentation(representation)
+            for representation in source.representations {
+                representation.size = pointSize
+                image.addRepresentation(representation)
+            }
         }
 
         guard !image.representations.isEmpty else {
