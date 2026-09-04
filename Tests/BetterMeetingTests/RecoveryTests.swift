@@ -1,0 +1,160 @@
+import AppKit
+import Foundation
+import SwiftUI
+import XCTest
+@testable import BetterMeetingApp
+
+final class RecoveryTests: XCTestCase {
+    func testUnfinishedAndLegacyRecordingsSurviveReload() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let date = Date(timeIntervalSince1970: 1_788_530_400)
+        let folder = try MeetingArtifacts.createDirectory(in: root, title: "Product / sync", recordedAt: date)
+        XCTAssertTrue(MeetingArtifacts.meetings(in: root).isEmpty, "A failed start with no recording is not recoverable")
+        try Data([1]).write(to: folder.appendingPathComponent("recording.mp4"))
+        let pending = try XCTUnwrap(MeetingArtifacts.meetings(in: root).first)
+        XCTAssertTrue(pending.needsTranscription)
+        XCTAssertEqual(pending.title, "Product sync")
+        XCTAssertEqual(pending.recordedAt, date)
+
+        // A crash between transcript writes must not turn a pending meeting into a completed one.
+        try "partial".write(to: folder.appendingPathComponent("transcript.md"), atomically: true, encoding: .utf8)
+        try "[]".write(to: folder.appendingPathComponent("transcript.json"), atomically: true, encoding: .utf8)
+        XCTAssertTrue(try XCTUnwrap(MeetingArtifacts.meetings(in: root).first).needsTranscription)
+
+        try MeetingArtifacts.write(title: pending.title, recordedAt: date, duration: 12, segments: [], to: folder)
+        XCTAssertFalse(try XCTUnwrap(MeetingArtifacts.meetings(in: root).first).needsTranscription)
+
+        // Completed metadata from earlier app versions has no completion flag.
+        let metadataURL = folder.appendingPathComponent("metadata.json")
+        var metadata = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: metadataURL)) as? [String: Any])
+        metadata.removeValue(forKey: "transcriptionComplete")
+        metadata.removeValue(forKey: "titleWasProvided")
+        try JSONSerialization.data(withJSONObject: metadata).write(to: metadataURL)
+        XCTAssertFalse(try XCTUnwrap(MeetingArtifacts.meetings(in: root).first).needsTranscription)
+        XCTAssertTrue(try XCTUnwrap(MeetingArtifacts.meetings(in: root).first).titleWasProvided)
+
+        // Earlier failures wrote no metadata at all. Their raw recording is still discoverable.
+        try FileManager.default.removeItem(at: metadataURL)
+        let legacy = try XCTUnwrap(MeetingArtifacts.meetings(in: root).first)
+        XCTAssertTrue(legacy.needsTranscription)
+        XCTAssertEqual(legacy.title, "Product sync")
+        XCTAssertEqual(legacy.recordedAt, date)
+    }
+
+    func testFailedExportKeepsExistingAudio() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let audioURL = root.appendingPathComponent("audio.m4a")
+        let original = Data("saved meeting audio".utf8)
+        try original.write(to: audioURL)
+        do {
+            try await AudioExtractor.extract(from: root.appendingPathComponent("missing.mp4"), to: audioURL) { _ in }
+            XCTFail("Exporting a missing recording must fail")
+        } catch {
+            XCTAssertEqual(try Data(contentsOf: audioURL), original)
+        }
+    }
+
+    func testEmptyModelDirectoriesAreNotAReadyCache() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent("\(name).mlmodelc"), withIntermediateDirectories: true)
+        }
+        XCTAssertFalse(LocalTranscriber.hasModelFiles(in: root))
+    }
+
+    @MainActor
+    func testRenderMenuBarPreview() throws {
+        guard let path = ProcessInfo.processInfo.environment["BETTER_MEETING_PREVIEW_PATH"] else {
+            throw XCTSkip("Set BETTER_MEETING_PREVIEW_PATH to render the menu with fictional meetings")
+        }
+        let suite = "BetterMeetingPreview.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite).appendingPathComponent("Better Meetings")
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: root.deletingLastPathComponent())
+        }
+        defaults.set(root, forKey: "outputFolder")
+        for (index, title) in ["Product sync", "Release planning", "Design review"].enumerated() {
+            let date = Date(timeIntervalSince1970: 1_788_530_400 - Double(index * 3_600))
+            let folder = try MeetingArtifacts.createDirectory(in: root, title: title, recordedAt: date)
+            try MeetingArtifacts.write(title: title, recordedAt: date, duration: Double(720 + index * 180), segments: [], to: folder)
+        }
+        _ = NSApplication.shared
+        let model = AppModel(defaults: defaults)
+        let view = NSHostingView(rootView: MenuBarControlView()
+            .environmentObject(model)
+            .environment(\.colorScheme, .light)
+            .background(Color(nsColor: .windowBackgroundColor)))
+        view.appearance = NSAppearance(named: .aqua)
+        view.frame = NSRect(origin: .zero, size: view.fittingSize)
+        view.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        let output = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try png.write(to: output)
+    }
+
+    @MainActor
+    func testPreferencesPersistAndHistoryKeepsOlderUnfinishedMeetings() throws {
+        let suite = "BetterMeetingTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: root)
+        }
+        for index in 0..<12 {
+            let date = Date(timeIntervalSince1970: Double(index * 60))
+            let folder = try MeetingArtifacts.createDirectory(in: root, title: "Meeting \(index)", recordedAt: date)
+            if index == 0 {
+                try Data([1]).write(to: folder.appendingPathComponent("audio.m4a"))
+            } else {
+                try MeetingArtifacts.write(title: "Meeting \(index)", recordedAt: date, duration: 60, segments: [], to: folder)
+            }
+        }
+        let model = AppModel(defaults: defaults)
+        model.setOutputFolder(root)
+        model.selectedDisplayID = 42
+        model.selectedMicrophoneID = "test-mic"
+        let reopened = AppModel(defaults: defaults)
+        XCTAssertEqual(reopened.outputRoot.path, root.path)
+        XCTAssertEqual(reopened.selectedDisplayID, 42)
+        XCTAssertEqual(reopened.selectedMicrophoneID, "test-mic")
+        XCTAssertEqual(reopened.transcriptionHistory.count, 10)
+        XCTAssertEqual(reopened.transcriptionHistory.first?.title, "Meeting 11")
+        XCTAssertEqual(reopened.unfinishedRecordings.map(\.title), ["Meeting 0"])
+        XCTAssertEqual(reopened.terminationReply(), .terminateNow)
+    }
+
+    func testModelPreparationAcrossColdLaunches() async throws {
+        guard let mode = ProcessInfo.processInfo.environment["BETTER_MEETING_MODEL_CHECK"] else {
+            throw XCTSkip("Set BETTER_MEETING_MODEL_CHECK=prepare, then offline in a separate process to check the real model cache")
+        }
+        let cache = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent(".build/model-check")
+        if mode == "offline" {
+            XCTAssertNotNil(LocalTranscriber.cachedModelFolder(in: cache))
+            URLProtocol.registerClass(OfflineRequests.self)
+        }
+        defer { URLProtocol.unregisterClass(OfflineRequests.self) }
+        try await LocalTranscriber(downloadBase: cache).prepare { _ in }
+        XCTAssertNotNil(LocalTranscriber.cachedModelFolder(in: cache))
+    }
+}
+
+private final class OfflineRequests: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        XCTFail("Cached model setup attempted a network request")
+        client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+    }
+    override func stopLoading() {}
+}

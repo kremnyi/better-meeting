@@ -24,6 +24,7 @@ let package = Package(
             ],
             path: "Sources/BetterMeetingApp"
         ),
+        .testTarget(name: "BetterMeetingTests", dependencies: ["BetterMeetingApp"]),
     ],
     swiftLanguageModes: [.v5]
 )

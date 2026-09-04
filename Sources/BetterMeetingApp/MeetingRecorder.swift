@@ -33,7 +33,7 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
         guard microphoneAllowed else { throw RecorderError.microphonePermissionDenied }
     }
 
-    func start(to outputURL: URL) async throws {
+    func start(to outputURL: URL, displayID: CGDirectDisplayID, microphoneID: String) async throws {
         guard stream == nil else { throw RecorderError.alreadyRecording }
         guard CGPreflightScreenCaptureAccess() else { throw RecorderError.screenPermissionDenied }
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
@@ -44,10 +44,15 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
             false,
             onScreenWindowsOnly: false
         )
-        let mainDisplayID = CGMainDisplayID()
-        guard let display = content.displays.first(where: { $0.displayID == mainDisplayID })
-                ?? content.displays.first else {
+        let captureDisplayID = displayID == 0 ? CGMainDisplayID() : displayID
+        guard let display = content.displays.first(where: { $0.displayID == captureDisplayID }) else {
             throw RecorderError.noDisplay
+        }
+        let microphone = microphoneID.isEmpty
+            ? AVCaptureDevice.default(for: .audio)
+            : AVCaptureDevice(uniqueID: microphoneID)
+        guard let microphone, microphone.hasMediaType(.audio), microphone.isConnected else {
+            throw RecorderError.noMicrophone
         }
 
         let ownBundleID = Bundle.main.bundleIdentifier
@@ -70,7 +75,7 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
         configuration.sampleRate = 48_000
         configuration.channelCount = 2
         configuration.captureMicrophone = true
-        configuration.microphoneCaptureDeviceID = AVCaptureDevice.default(for: .audio)?.uniqueID
+        configuration.microphoneCaptureDeviceID = microphone.uniqueID
 
         let outputConfiguration = SCRecordingOutputConfiguration()
         outputConfiguration.outputURL = outputURL
@@ -116,12 +121,14 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
 
     nonisolated func recordingOutputDidStartRecording(_ recordingOutput: SCRecordingOutput) {
         Task { @MainActor in
+            guard recordingOutput === self.recordingOutput else { return }
             finishStart(with: .success(()))
         }
     }
 
     nonisolated func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
         Task { @MainActor in
+            guard recordingOutput === self.recordingOutput else { return }
             if stopContinuation != nil {
                 finishStop(with: .success(()))
             } else {
@@ -135,6 +142,7 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
         didFailWithError error: any Error
     ) {
         Task { @MainActor in
+            guard recordingOutput === self.recordingOutput else { return }
             if startContinuation != nil {
                 finishStart(with: .failure(error))
             } else if stopContinuation != nil {
@@ -147,16 +155,19 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
 
     nonisolated func stream(_ stream: SCStream, didStopWithError error: any Error) {
         Task { @MainActor in
+            guard stream === self.stream else { return }
+            let nsError = error as NSError
+            let code = SCStreamError.Code(rawValue: nsError.code)
+            let wasStoppedIntentionally = nsError.domain == SCStreamErrorDomain
+                && (code == .userStopped || code == .systemStoppedStream)
+            // The recording-output callback confirms the MP4 has finished writing.
+            if wasStoppedIntentionally, startContinuation == nil { return }
             if startContinuation != nil {
                 finishStart(with: .failure(error))
             } else if stopContinuation != nil {
                 finishStop(with: .failure(error))
             } else {
-                let nsError = error as NSError
-                let code = SCStreamError.Code(rawValue: nsError.code)
-                let wasStoppedIntentionally = nsError.domain == SCStreamErrorDomain
-                    && (code == .userStopped || code == .systemStoppedStream)
-                finishUnexpectedStop(with: wasStoppedIntentionally ? nil : error)
+                finishUnexpectedStop(with: error)
             }
         }
     }
@@ -184,8 +195,10 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
     }
 
     private func cleanUp() {
+        let previousStream = stream
         stream = nil
         recordingOutput = nil
+        Task { try? await previousStream?.stopCapture() }
     }
 }
 
@@ -195,6 +208,7 @@ enum RecorderError: LocalizedError {
     case screenPermissionDenied
     case microphonePermissionDenied
     case noDisplay
+    case noMicrophone
 
     var errorDescription: String? {
         switch self {
@@ -207,7 +221,9 @@ enum RecorderError: LocalizedError {
         case .microphonePermissionDenied:
             "Microphone access is off. Enable Better Meeting in System Settings → Privacy & Security → Microphone."
         case .noDisplay:
-            "No display is available to record."
+            "The selected display is unavailable. Choose a connected display in Capture options."
+        case .noMicrophone:
+            "The selected microphone is unavailable. Choose a connected microphone in Capture options."
         }
     }
 }

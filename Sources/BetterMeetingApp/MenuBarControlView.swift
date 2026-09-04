@@ -29,6 +29,7 @@ struct MenuBarControlView: View {
         .frame(width: 304)
         .onAppear {
             model.refreshHistory()
+            model.refreshInputs()
         }
     }
 
@@ -72,9 +73,44 @@ struct MenuBarControlView: View {
 
             destinationButton
 
+            DisclosureGroup("Capture options") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Picker("Display", selection: $model.selectedDisplayID) {
+                        Text("Main display").tag(UInt32(0))
+                        ForEach(model.displays, id: \.id) { display in
+                            Text(display.name).tag(display.id)
+                        }
+                        if model.selectedDisplayID != 0 && !model.displays.contains(where: { $0.id == model.selectedDisplayID }) {
+                            Text("Unavailable display").tag(model.selectedDisplayID)
+                        }
+                    }
+                    Picker("Microphone", selection: $model.selectedMicrophoneID) {
+                        Text("System default").tag("")
+                        ForEach(model.microphones, id: \.uniqueID) { microphone in
+                            Text(microphone.localizedName).tag(microphone.uniqueID)
+                        }
+                        if !model.selectedMicrophoneID.isEmpty && !model.microphones.contains(where: { $0.uniqueID == model.selectedMicrophoneID }) {
+                            Text("Unavailable microphone").tag(model.selectedMicrophoneID)
+                        }
+                    }
+                }
+                .controlSize(.small)
+                .padding(.top, 6)
+            }
+            .font(.callout)
+
             primaryActionButton
 
             captureSummary
+
+            if !model.modelReady {
+                Button("Set up transcription", action: model.prepareSpeechModel)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                Text("Download the speech model before your first meeting.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Divider()
 
@@ -84,11 +120,22 @@ struct MenuBarControlView: View {
 
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Recent transcripts")
+            if !model.unfinishedRecordings.isEmpty {
+                Menu("Finish saved recording (\(model.unfinishedRecordings.count))") {
+                    ForEach(model.unfinishedRecordings) { item in
+                        Button("\(item.title) · \(item.recordedAt.formatted(date: .abbreviated, time: .shortened))") {
+                            model.retryTranscription(item)
+                        }
+                    }
+                }
+                .help("Retry transcription from a saved recording")
+            }
+
+            Text("Recent meetings")
                 .font(.callout.weight(.medium))
 
             if model.transcriptionHistory.isEmpty {
-                Text("Completed transcripts will appear here.")
+                Text("Finished meetings will appear here. Open their folders in Finder.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -184,13 +231,12 @@ struct MenuBarControlView: View {
     }
 
     private var preparingContent: some View {
-        HStack(spacing: 9) {
-            ProgressView()
-                .controlSize(.small)
-
+        VStack(alignment: .leading, spacing: 9) {
             Text(model.statusText)
                 .font(.callout)
                 .foregroundStyle(.secondary)
+            processingIndicator
+                .accessibilityLabel(model.statusText)
         }
         .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
     }
@@ -268,6 +314,9 @@ struct MenuBarControlView: View {
             }
 
             primaryActionButton
+
+            Button("Back to meetings", action: model.dismissFailure)
+                .buttonStyle(.bordered)
 
             if model.privacyPermission != nil {
                 captureSummary

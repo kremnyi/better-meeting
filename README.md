@@ -1,29 +1,37 @@
 # Better Meeting
 
-A native macOS menu bar app that records meetings and turns them into local,
-portable transcripts.
+Record meetings from the macOS menu bar and transcribe them locally with Whisper.
+Save video, audio, Markdown, and JSON in one folder per meeting.
 
-Better Meeting captures the main display, system audio, and microphone. When
-recording stops, it transcribes the audio on the Mac and creates one folder with
-the video, audio, Markdown transcript, and machine-readable metadata. Recording
-controls, processing progress, and recent transcripts all live in the menu bar;
-there is no Dock icon or separate app window.
+Better Meeting captures a display, system audio, and your microphone. Choose the
+display and microphone in **Capture options**, then start recording. After you
+stop, the app creates a timestamped transcript on your Mac. Open completed
+meeting folders with the Finder button in the menu bar.
+
+**Available from source for Apple Silicon Macs running macOS 15 or newer.**
+A signed, notarized download is not available yet.
+
+<img src="docs/menu-bar.png" alt="Better Meeting menu with capture options and Finder buttons for recent meetings" width="304">
+
+The app's menu bar view, rendered with fictional meetings.
 
 [Features](#features) · [Install](#install-from-source) · [Permissions](#permissions-and-privacy) · [Development](#development) · [Project origin](#project-origin)
 
 ## Features
 
-- Record the main display, system audio, and microphone with ScreenCaptureKit
+- Choose a display and microphone; record with ScreenCaptureKit
 - Transcribe locally with WhisperKit after recording stops
-- Follow real progress while the model downloads and the transcript is created
-- Reopen any of the 10 most recent transcripts from the menu bar
-- Open an individual meeting folder or the complete meetings folder in Finder
-- Keep recordings and transcripts on the Mac
+- Automatically name untitled meetings from a person, company, or product and a recurring topic
+- Prepare the speech model before your first meeting and follow processing progress
+- Open any of the 10 most recent completed meeting folders in Finder
+- Retry unfinished recordings from saved audio, including after restarting the app
+- Remember your save folder, display, and microphone choices
+- Finish saving and transcribing before quitting an active recording
 
 ## Meeting folders
 
 The default location is `~/Documents/Better Meetings`. You can choose another
-folder before recording.
+folder before recording; the app remembers it on subsequent launches.
 
 ```text
 2026-09-04 14.30.00 — Product sync/
@@ -34,8 +42,44 @@ folder before recording.
 └── metadata.json
 ```
 
-`transcript.md` contains readable, timestamped text and links back to the video.
-The JSON files make the same meeting easy to use with scripts or other tools.
+`transcript.md` contains readable timestamps and a link to the video file. The
+timestamps themselves are plain text. `transcript.json` stores each segment's
+start, end, text, and detected language; `metadata.json` stores the meeting title,
+date, duration, file names, and transcription status.
+
+Leave the meeting name empty to name it automatically after transcription. For
+example, repeated discussion of a pricing review with Anna can produce
+`Anna — Pricing Review`, saved in a folder such as
+`2026-09-04 14.30.00 — Anna — Pricing Review`. The Markdown heading and metadata
+use the same title; the Finder button opens the renamed folder.
+
+Titles use Apple's built-in `NaturalLanguage` framework to find a person or
+organization and a repeated noun or short noun phrase. Recurring capitalized
+nouns provide a conservative fallback for product names. This requires no
+additional model download or API call. Recognition depends on the transcript
+and language support available on the Mac; it is not a generated summary.
+
+If no usable name and repeated topic are found, the date-based name remains,
+such as `2026-09-04 14.30.00`. Typed titles are preserved. New recordings remember
+whether a title was entered, so automatic naming also works when retrying an
+unfinished recording after a restart. Older folders without that information
+keep their titles. Name collisions receive a numeric suffix; existing folders
+are never overwritten.
+
+An illustrative transcript excerpt:
+
+```text
+## Transcript
+
+[00:00:02] [en] Let's review the release checklist.
+[00:00:08] [en] I'll check the microphone selection before Friday.
+[00:00:15] [en] We'll decide whether to ship after that test.
+```
+
+Recordings are saved before transcription. If processing fails, use **Retry
+transcription** or return to **Finish saved recording** in the menu bar. Existing
+audio is reused; the app extracts it from the video if needed. A recording
+interrupted before macOS finishes writing the video may not be recoverable.
 
 ## Requirements
 
@@ -54,7 +98,25 @@ open "dist/Better Meeting.app"
 ```
 
 Move `Better Meeting.app` from `dist` to `/Applications` if you want to keep it
-installed. A signed and notarized release is not available yet.
+installed. Controls live in the menu bar; the app has no Dock icon.
+
+## First recording
+
+1. Open Better Meeting's menu bar icon. Use **Set up transcription** to download
+   and load the multilingual Whisper `small` model before a meeting. Otherwise,
+   setup happens after your first recording stops.
+2. Choose a save folder and, if needed, a display and microphone under **Capture
+   options**. The defaults are your main display and system microphone.
+3. Start recording and grant the permissions below. After granting screen
+   recording access, restart the app when prompted.
+4. Stop recording and wait for transcription. Use the folder button beside the
+   finished meeting to open its files in Finder.
+
+Model downloads are cached under
+`~/Documents/huggingface/models/argmaxinc/whisperkit-coreml/`; tokenizer files may
+also be stored under `~/Documents/huggingface/models/openai/whisper-small/`.
+The first model load can take longer while Core ML prepares it for your Mac.
+Subsequent launches load cached model files directly.
 
 ## Permissions and privacy
 
@@ -63,8 +125,10 @@ The first recording asks for **Screen & System Audio Recording** and
 screen-recording access is granted.
 
 Recording and transcription run locally. The app does not upload meetings or
-send them to an LLM. Network access is only needed when WhisperKit downloads its
-speech model for the first time.
+send them to an LLM. Model and tokenizer setup downloads files from Hugging Face.
+Automatic meeting titles run entirely through Apple's on-device language tagging.
+After successful setup, cached files support offline transcription across app
+restarts. Setup may need internet again if those files are removed or damaged.
 
 Development builds are ad-hoc signed by default. Because macOS ties recording
 permission to an app's signature, permissions may need to be granted again after
@@ -81,11 +145,39 @@ The app is a Swift Package with a single SwiftUI executable target.
 
 ```bash
 swift build --product BetterMeeting
-swift run BetterMeeting
+swift test
+./scripts/build-app.sh
 ```
 
 `./scripts/build-app.sh` produces the complete `.app` bundle in `dist/`, including
 the app icon, menu bar assets, license notices, and code signature.
+Use the app bundle for recording and permission checks; `swift run BetterMeeting`
+is only a development launch and does not include the bundle's permission text
+or assets. GitHub Actions runs the recovery checks and builds the app bundle on
+macOS.
+
+The optional model check downloads the real model into `.build/model-check`,
+then verifies a fresh process can load it with HTTP requests blocked:
+
+```bash
+BETTER_MEETING_MODEL_CHECK=prepare swift test --filter testModelPreparationAcrossColdLaunches
+BETTER_MEETING_MODEL_CHECK=offline swift test --filter testModelPreparationAcrossColdLaunches
+```
+
+To refresh the menu image using fictional meetings:
+
+```bash
+BETTER_MEETING_PREVIEW_PATH="$PWD/docs/menu-bar.png" swift test --filter testRenderMenuBarPreview
+```
+
+## Current limits
+
+- Records one whole display; there is no window-only or audio-only capture mode.
+- Transcription starts after recording stops. New recordings wait until it finishes.
+- Transcript segments have timestamps and detected language, without speaker labels.
+- Existing-file import, live captions, and meeting summaries are not included.
+- A selected display or microphone must still be connected when recording starts.
+- Force Quit or power loss can interrupt video finalization; normal Quit waits for saving.
 
 ## Project origin
 

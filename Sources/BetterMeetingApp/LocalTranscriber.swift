@@ -11,36 +11,70 @@ enum LocalTranscriptionProgress: Sendable {
 
 actor LocalTranscriber {
     private var whisper: WhisperKit?
+    private let downloadBase: URL
 
-    func transcribe(
-        audioURL: URL,
+    static let defaultDownloadBase = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("huggingface")
+
+    init(downloadBase: URL = defaultDownloadBase) {
+        self.downloadBase = downloadBase
+    }
+
+    static func cachedModelFolder(in downloadBase: URL = defaultDownloadBase) -> URL? {
+        let folder = downloadBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml/openai_whisper-small")
+        return hasModelFiles(in: folder) ? folder : nil
+    }
+
+    static func hasModelFiles(in folder: URL) -> Bool {
+        ["MelSpectrogram", "AudioEncoder", "TextDecoder"].allSatisfy { name in
+            ["mlmodelc", "mlpackage"].contains { ext in
+                let manifest = folder.appendingPathComponent("\(name).\(ext)")
+                    .appendingPathComponent(ext == "mlmodelc" ? "coremldata.bin" : "Manifest.json")
+                let values = try? manifest.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+                return values?.isRegularFile == true && (values?.fileSize ?? 0) > 0
+            }
+        }
+    }
+
+    @discardableResult
+    func prepare(
         progressHandler: @escaping @Sendable (LocalTranscriptionProgress) -> Void
-    ) async throws -> [TranscriptSegment] {
-        let whisper: WhisperKit
-        if let loaded = self.whisper {
-            whisper = loaded
+    ) async throws -> WhisperKit {
+        if let whisper { return whisper }
+        progressHandler(.preparingModel)
+        let modelFolder: URL
+        if let cached = Self.cachedModelFolder(in: downloadBase) {
+            modelFolder = cached
         } else {
-            progressHandler(.preparingModel)
-            let modelFolder = try await WhisperKit.download(
-                variant: "small",
+            modelFolder = try await WhisperKit.download(
+                variant: "openai_whisper-small",
+                downloadBase: downloadBase,
                 progressCallback: { progress in
                     let fraction = progress.fractionCompleted
                     guard fraction.isFinite else { return }
                     progressHandler(.downloadingModel(min(max(fraction, 0), 1)))
                 }
             )
-
-            progressHandler(.loadingModel)
-            let loaded = try await WhisperKit(
-                modelFolder: modelFolder.path,
-                verbose: false,
-                prewarm: false,
-                load: true,
-                download: false
-            )
-            self.whisper = loaded
-            whisper = loaded
         }
+
+        progressHandler(.loadingModel)
+        let loaded = try await WhisperKit(
+            modelFolder: modelFolder.path,
+            tokenizerFolder: downloadBase,
+            verbose: false,
+            prewarm: false,
+            load: true,
+            download: false
+        )
+        whisper = loaded
+        return loaded
+    }
+
+    func transcribe(
+        audioURL: URL,
+        progressHandler: @escaping @Sendable (LocalTranscriptionProgress) -> Void
+    ) async throws -> [TranscriptSegment] {
+        let whisper = try await prepare(progressHandler: progressHandler)
 
         let decodingOptions = DecodingOptions(
             verbose: false,

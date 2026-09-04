@@ -7,9 +7,9 @@ enum AudioExtractor {
         to audioURL: URL,
         progressHandler: @escaping @Sendable (Double) -> Void
     ) async throws {
-        if FileManager.default.fileExists(atPath: audioURL.path) {
-            try FileManager.default.removeItem(at: audioURL)
-        }
+        let temporaryURL = audioURL.deletingLastPathComponent()
+            .appendingPathComponent(".audio-\(UUID().uuidString).m4a")
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
 
         let asset = AVURLAsset(url: recordingURL)
         guard let exporter = AVAssetExportSession(
@@ -29,7 +29,12 @@ enum AudioExtractor {
         }
         defer { progressTask.cancel() }
 
-        try await exporter.export(to: audioURL, as: .m4a)
+        try await exporter.export(to: temporaryURL, as: .m4a)
+        if FileManager.default.fileExists(atPath: audioURL.path) {
+            _ = try FileManager.default.replaceItemAt(audioURL, withItemAt: temporaryURL)
+        } else {
+            try FileManager.default.moveItem(at: temporaryURL, to: audioURL)
+        }
         progressHandler(1)
     }
 }

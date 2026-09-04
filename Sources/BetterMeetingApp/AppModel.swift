@@ -53,7 +53,7 @@ final class AppModel: ObservableObject {
     @Published var meetingTitle = ""
     @Published private(set) var state: AppState = .idle
     @Published private(set) var elapsed: TimeInterval = 0
-    @Published private(set) var statusText = "Ready to record your main display and audio."
+    @Published private(set) var statusText = "Ready to record your display and audio."
     @Published private(set) var errorMessage: String?
     @Published private(set) var completedFolder: URL?
     @Published private(set) var outputRoot: URL
@@ -61,16 +61,34 @@ final class AppModel: ObservableObject {
     @Published private(set) var processingFraction: Double?
     @Published private(set) var processingPhase: ProcessingPhase?
     @Published private(set) var transcriptionHistory: [MeetingHistoryItem] = []
+    @Published private(set) var unfinishedRecordings: [MeetingHistoryItem] = []
+    @Published private(set) var modelReady = LocalTranscriber.cachedModelFolder() != nil
+    @Published private(set) var displays: [(id: CGDirectDisplayID, name: String)] = []
+    @Published private(set) var microphones: [AVCaptureDevice] = []
+    @Published var selectedDisplayID: CGDirectDisplayID {
+        didSet { defaults.set(Int(selectedDisplayID), forKey: "displayID") }
+    }
+    @Published var selectedMicrophoneID: String {
+        didSet { defaults.set(selectedMicrophoneID, forKey: "microphoneID") }
+    }
 
+    private let defaults: UserDefaults
     private let recorder = MeetingRecorder()
     private let transcriber = LocalTranscriber()
     private var activeFolder: URL?
     private var recordedAt: Date?
+    private var titleWasProvided = true
     private var timer: Timer?
+    private var preparingModelOnly = false
+    private var quitWhenFinished = false
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        outputRoot = documents.appendingPathComponent("Better Meetings", isDirectory: true)
+        outputRoot = defaults.url(forKey: "outputFolder")
+            ?? documents.appendingPathComponent("Better Meetings", isDirectory: true)
+        selectedDisplayID = CGDirectDisplayID(clamping: defaults.integer(forKey: "displayID"))
+        selectedMicrophoneID = defaults.string(forKey: "microphoneID") ?? ""
         recorder.onUnexpectedStop = { [weak self] error in
             self?.captureStoppedExternally(with: error)
         }
@@ -90,8 +108,10 @@ final class AppModel: ObservableObject {
         case .failed:
             if privacyPermission == .screenRecording {
                 "Restart Better Meeting"
-            } else if completedFolder != nil {
-                "New recording"
+            } else if preparingModelOnly {
+                "Retry model setup"
+            } else if unfinishedRecordings.contains(where: { $0.folderURL == completedFolder }) {
+                "Retry transcription"
             } else {
                 "Try again"
             }
@@ -103,6 +123,9 @@ final class AppModel: ObservableObject {
             return "stop.fill"
         }
         if state == .failed, privacyPermission == .screenRecording {
+            return "arrow.clockwise"
+        }
+        if state == .failed, preparingModelOnly || unfinishedRecordings.contains(where: { $0.folderURL == completedFolder }) {
             return "arrow.clockwise"
         }
         return "record.circle"
@@ -137,8 +160,115 @@ final class AppModel: ObservableObject {
             stopRecording()
         } else if state == .failed, privacyPermission == .screenRecording {
             restartApplication()
-        } else {
+        } else if state == .failed, preparingModelOnly {
+            prepareSpeechModel()
+        } else if state == .failed, let folder = completedFolder,
+                  let item = unfinishedRecordings.first(where: { $0.folderURL == folder }) {
+            retryTranscription(item)
+        } else if state == .idle || state == .failed {
             startRecording()
+        }
+    }
+
+    func refreshInputs() {
+        displays = NSScreen.screens.compactMap { screen in
+            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
+                return nil
+            }
+            return (number.uint32Value, screen.localizedName)
+        }
+        microphones = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone, .external], mediaType: .audio, position: .unspecified
+        ).devices
+    }
+
+    func prepareSpeechModel() {
+        guard state == .idle || state == .failed else { return }
+        preparingModelOnly = true
+        errorMessage = nil
+        privacyPermission = nil
+        completedFolder = nil
+        state = .preparing
+        setProcessingPhase(.preparingModel)
+        Task {
+            do {
+                try await transcriber.prepare { [weak self] progress in
+                    Task { @MainActor [weak self] in self?.updateTranscriptionProgress(progress) }
+                }
+                modelReady = true
+                preparingModelOnly = false
+                processingPhase = nil
+                processingFraction = nil
+                state = .idle
+                statusText = "Speech model ready on this Mac."
+            } catch {
+                fail(error)
+            }
+        }
+    }
+
+    func retryTranscription(_ item: MeetingHistoryItem) {
+        guard state == .idle || state == .failed else { return }
+        preparingModelOnly = false
+        activeFolder = item.folderURL
+        completedFolder = nil
+        recordedAt = item.recordedAt
+        meetingTitle = item.title
+        titleWasProvided = item.titleWasProvided
+        elapsed = item.duration
+        errorMessage = nil
+        privacyPermission = nil
+        state = .processing
+        setProcessingPhase(.preparingAudio)
+        Task { await finishRecording(stopCapture: false) }
+    }
+
+    func dismissFailure() {
+        guard state == .failed else { return }
+        state = .idle
+        errorMessage = nil
+        privacyPermission = nil
+        preparingModelOnly = false
+        meetingTitle = ""
+        refreshHistory()
+    }
+
+    func terminationReply() -> NSApplication.TerminateReply {
+        guard state == .recording || state == .processing || state == .preparing else {
+            return .terminateNow
+        }
+        let alert = NSAlert()
+        if state == .preparing {
+            alert.messageText = "Setup is still running"
+            alert.informativeText = "Wait for setup to finish before quitting."
+            alert.addButton(withTitle: "Keep open")
+            alert.runModal()
+            return .terminateCancel
+        }
+        alert.messageText = state == .recording ? "Finish this recording and quit?" : "Quit when transcription finishes?"
+        alert.informativeText = "Better Meeting will stay open until the recording and transcript are saved."
+        alert.addButton(withTitle: state == .recording ? "Finish and quit" : "Wait and quit")
+        alert.addButton(withTitle: "Keep open")
+        guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
+        // Processing may finish while the native confirmation is open.
+        guard state == .recording || state == .processing else {
+            return state == .idle ? .terminateNow : .terminateCancel
+        }
+        quitWhenFinished = true
+        if state == .recording { stopRecording() }
+        return .terminateLater
+    }
+
+    func setOutputFolder(_ url: URL) {
+        outputRoot = url
+        defaults.set(url, forKey: "outputFolder")
+        refreshHistory()
+    }
+
+    private func completeTermination(_ success: Bool) {
+        if quitWhenFinished {
+            quitWhenFinished = false
+            NSApp.reply(toApplicationShouldTerminate: success)
         }
     }
 
@@ -153,13 +283,14 @@ final class AppModel: ObservableObject {
         panel.directoryURL = outputRoot
 
         if panel.runModal() == .OK, let url = panel.url {
-            outputRoot = url
-            refreshHistory()
+            setOutputFolder(url)
         }
     }
 
     func refreshHistory() {
-        transcriptionHistory = MeetingArtifacts.recentTranscriptions(in: outputRoot)
+        let meetings = MeetingArtifacts.meetings(in: outputRoot)
+        transcriptionHistory = Array(meetings.filter { !$0.needsTranscription }.prefix(10))
+        unfinishedRecordings = meetings.filter(\.needsTranscription)
     }
 
     func openMeetingsFolder() {
@@ -193,6 +324,7 @@ final class AppModel: ObservableObject {
     }
 
     private func startRecording() {
+        preparingModelOnly = false
         stopTimer()
         elapsed = 0
         state = .preparing
@@ -206,6 +338,7 @@ final class AppModel: ObservableObject {
         recordedAt = nil
 
         let title = meetingTitle
+        titleWasProvided = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         Task {
             do {
                 try await recorder.requestPermissions()
@@ -218,12 +351,11 @@ final class AppModel: ObservableObject {
                 )
                 let recordingURL = folder.appendingPathComponent("recording.mp4")
 
-                try await recorder.start(to: recordingURL)
-
                 activeFolder = folder
                 recordedAt = startedAt
+                try await recorder.start(to: recordingURL, displayID: selectedDisplayID, microphoneID: selectedMicrophoneID)
                 state = .recording
-                statusText = "Recording main display, system audio, and microphone."
+                statusText = "Recording the selected display, system audio, and microphone."
                 startTimer(from: startedAt)
             } catch {
                 fail(error)
@@ -263,7 +395,7 @@ final class AppModel: ObservableObject {
 
     private func finishRecording(stopCapture: Bool) async {
         do {
-            guard let folder = activeFolder, let recordedAt else {
+            guard var folder = activeFolder, let recordedAt else {
                 throw AppError.missingRecording
             }
 
@@ -274,12 +406,20 @@ final class AppModel: ObservableObject {
             let recordingURL = folder.appendingPathComponent("recording.mp4")
             let audioURL = folder.appendingPathComponent("audio.m4a")
             setProcessingPhase(.preparingAudio, fraction: 0)
-            try await AudioExtractor.extract(from: recordingURL, to: audioURL) { [weak self] fraction in
-                Task { @MainActor [weak self] in
-                    guard self?.processingPhase == .preparingAudio else { return }
-                    self?.processingFraction = fraction
+            if ((try? AVAudioFile(forReading: audioURL).length) ?? 0) == 0 {
+                try await AudioExtractor.extract(from: recordingURL, to: audioURL) { [weak self] fraction in
+                    Task { @MainActor [weak self] in
+                        guard self?.processingPhase == .preparingAudio else { return }
+                        self?.processingFraction = fraction
+                    }
                 }
             }
+            let audio = try AVAudioFile(forReading: audioURL)
+            elapsed = Double(audio.length) / audio.fileFormat.sampleRate
+            try MeetingArtifacts.writeMetadata(
+                title: meetingTitle, recordedAt: recordedAt, duration: elapsed,
+                titleWasProvided: titleWasProvided, to: folder
+            )
 
             let segments = try await transcriber.transcribe(audioURL: audioURL) { [weak self] progress in
                 Task { @MainActor [weak self] in
@@ -288,19 +428,31 @@ final class AppModel: ObservableObject {
             }
 
             setProcessingPhase(.writingFiles)
+            if !titleWasProvided {
+                let generatedTitle = await Task.detached(priority: .utility) {
+                    MeetingTitle.suggest(from: segments.map(\.text).joined(separator: "\n"))
+                }.value
+                if let generatedTitle {
+                    folder = try MeetingArtifacts.renameDirectory(folder, title: generatedTitle, recordedAt: recordedAt)
+                    activeFolder = folder
+                    meetingTitle = generatedTitle
+                }
+            }
             try MeetingArtifacts.write(
                 title: meetingTitle,
                 recordedAt: recordedAt,
                 duration: elapsed,
                 segments: segments,
+                titleWasProvided: titleWasProvided,
                 to: folder
             )
 
             completedFolder = folder
+            modelReady = true
             refreshHistory()
             elapsed = 0
             state = .idle
-            statusText = "Ready to record your main display and audio."
+            statusText = "Ready to record your display and audio."
             errorMessage = nil
             privacyPermission = nil
             processingFraction = nil
@@ -308,6 +460,7 @@ final class AppModel: ObservableObject {
             activeFolder = nil
             self.recordedAt = nil
             meetingTitle = ""
+            completeTermination(true)
         } catch {
             if let activeFolder {
                 completedFolder = activeFolder
@@ -330,7 +483,7 @@ final class AppModel: ObservableObject {
     }
 
     private func updateTranscriptionProgress(_ progress: LocalTranscriptionProgress) {
-        guard state == .processing else { return }
+        guard state == .processing || (state == .preparing && preparingModelOnly) else { return }
 
         switch progress {
         case .preparingModel:
@@ -357,6 +510,11 @@ final class AppModel: ObservableObject {
         processingFraction = nil
         processingPhase = nil
         errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        if let activeFolder, !preparingModelOnly {
+            completedFolder = activeFolder
+        }
+        refreshHistory()
+        completeTermination(false)
 
         switch error as? RecorderError {
         case .screenPermissionDenied:

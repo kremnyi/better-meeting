@@ -15,6 +15,8 @@ struct MeetingManifest: Codable {
     let audio: String
     let transcript: String
     let segmentCount: Int
+    var transcriptionComplete: Bool? = nil
+    var titleWasProvided: Bool? = nil
 }
 
 struct MeetingHistoryItem: Identifiable, Equatable, Sendable {
@@ -22,6 +24,8 @@ struct MeetingHistoryItem: Identifiable, Equatable, Sendable {
     let recordedAt: Date
     let duration: TimeInterval
     let folderURL: URL
+    let needsTranscription: Bool
+    let titleWasProvided: Bool
 
     var id: URL { folderURL }
 }
@@ -34,17 +38,34 @@ enum MeetingArtifacts {
         )
 
         let timestamp = folderDateFormatter.string(from: recordedAt)
-        let safeTitle = sanitizedTitle(title)
-        let baseName = "\(timestamp) — \(safeTitle)"
+        let baseName = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? timestamp : "\(timestamp) — \(sanitizedTitle(title))"
+        let candidate = availableDirectory(in: root, named: baseName)
+
+        try FileManager.default.createDirectory(at: candidate, withIntermediateDirectories: false)
+        try writeMetadata(title: title, recordedAt: recordedAt, duration: 0, to: candidate)
+        return candidate
+    }
+
+    static func renameDirectory(_ folder: URL, title: String, recordedAt: Date) throws -> URL {
+        let baseName = "\(folderDateFormatter.string(from: recordedAt)) — \(sanitizedTitle(title))"
+        let destination = availableDirectory(in: folder.deletingLastPathComponent(), named: baseName, current: folder)
+        if destination.standardizedFileURL.path != folder.standardizedFileURL.path {
+            try FileManager.default.moveItem(at: folder, to: destination)
+        }
+        return destination
+    }
+
+    private static func availableDirectory(in root: URL, named baseName: String, current: URL? = nil) -> URL {
         var candidate = root.appendingPathComponent(baseName, isDirectory: true)
         var suffix = 2
 
-        while FileManager.default.fileExists(atPath: candidate.path) {
+        while candidate.standardizedFileURL.path != current?.standardizedFileURL.path
+                && FileManager.default.fileExists(atPath: candidate.path) {
             candidate = root.appendingPathComponent("\(baseName) \(suffix)", isDirectory: true)
             suffix += 1
         }
 
-        try FileManager.default.createDirectory(at: candidate, withIntermediateDirectories: false)
         return candidate
     }
 
@@ -53,9 +74,10 @@ enum MeetingArtifacts {
         recordedAt: Date,
         duration: TimeInterval,
         segments: [TranscriptSegment],
+        titleWasProvided: Bool? = nil,
         to folder: URL
     ) throws {
-        let resolvedTitle = sanitizedTitle(title)
+        let resolvedTitle = resolvedTitle(title, recordedAt: recordedAt)
         let transcript = transcriptMarkdown(
             title: resolvedTitle,
             recordedAt: recordedAt,
@@ -78,15 +100,40 @@ enum MeetingArtifacts {
             options: .atomic
         )
 
-        let manifest = MeetingManifest(
+        try writeMetadata(
             title: resolvedTitle,
+            recordedAt: recordedAt,
+            duration: duration,
+            segmentCount: segments.count,
+            transcriptionComplete: true,
+            titleWasProvided: titleWasProvided ?? !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            to: folder
+        )
+    }
+
+    static func writeMetadata(
+        title: String,
+        recordedAt: Date,
+        duration: TimeInterval,
+        segmentCount: Int = 0,
+        transcriptionComplete: Bool = false,
+        titleWasProvided: Bool? = nil,
+        to folder: URL
+    ) throws {
+        let manifest = MeetingManifest(
+            title: resolvedTitle(title, recordedAt: recordedAt),
             recordedAt: recordedAt,
             duration: duration,
             recording: "recording.mp4",
             audio: "audio.m4a",
             transcript: "transcript.md",
-            segmentCount: segments.count
+            segmentCount: segmentCount,
+            transcriptionComplete: transcriptionComplete,
+            titleWasProvided: titleWasProvided ?? !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
         let manifestData = try encoder.encode(manifest)
         try manifestData.write(
             to: folder.appendingPathComponent("metadata.json"),
@@ -94,39 +141,45 @@ enum MeetingArtifacts {
         )
     }
 
-    static func recentTranscriptions(in root: URL, limit: Int = 10) -> [MeetingHistoryItem] {
-        guard limit > 0 else { return [] }
-
+    static func meetings(in root: URL) -> [MeetingHistoryItem] {
         let folders = (try? FileManager.default.contentsOfDirectory(
             at: root,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            includingPropertiesForKeys: [.isDirectoryKey, .creationDateKey],
             options: [.skipsHiddenFiles]
         )) ?? []
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
         return folders.compactMap { folder in
-            let values = try? folder.resourceValues(forKeys: [.isDirectoryKey])
+            let values = try? folder.resourceValues(forKeys: [.isDirectoryKey, .creationDateKey])
             guard values?.isDirectory == true else { return nil }
 
             let metadataURL = folder.appendingPathComponent("metadata.json")
-            let transcriptURL = folder.appendingPathComponent("transcript.md")
-            guard
-                FileManager.default.fileExists(atPath: transcriptURL.path),
-                let data = try? Data(contentsOf: metadataURL),
-                let manifest = try? decoder.decode(MeetingManifest.self, from: data)
-            else { return nil }
+            let manifest = (try? Data(contentsOf: metadataURL)).flatMap {
+                try? decoder.decode(MeetingManifest.self, from: $0)
+            }
+            let hasTranscripts = ["transcript.md", "transcript.json"].allSatisfy {
+                FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path)
+            }
+            let complete = manifest != nil && manifest?.transcriptionComplete != false && hasTranscripts
+            let hasRecording = ["recording.mp4", "audio.m4a"].contains {
+                FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path)
+            }
+            guard complete || hasRecording else { return nil }
+
+            let nameParts = folder.lastPathComponent.components(separatedBy: " — ")
+            let legacyDate = folderDateFormatter.date(from: nameParts[0])
 
             return MeetingHistoryItem(
-                title: manifest.title,
-                recordedAt: manifest.recordedAt,
-                duration: manifest.duration,
-                folderURL: folder
+                title: manifest?.title ?? (nameParts.count > 1 ? nameParts.dropFirst().joined(separator: " — ") : folder.lastPathComponent),
+                recordedAt: manifest?.recordedAt ?? legacyDate ?? values?.creationDate ?? .distantPast,
+                duration: manifest?.duration ?? 0,
+                folderURL: folder,
+                needsTranscription: !complete,
+                titleWasProvided: manifest?.titleWasProvided ?? true
             )
         }
         .sorted { $0.recordedAt > $1.recordedAt }
-        .prefix(limit)
-        .map { $0 }
     }
 
     static func transcriptMarkdown(
@@ -169,6 +222,11 @@ enum MeetingArtifacts {
             .joined(separator: " ")
         let resolved = collapsed.isEmpty ? "Meeting" : collapsed
         return String(resolved.prefix(80))
+    }
+
+    private static func resolvedTitle(_ title: String, recordedAt: Date) -> String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? folderDateFormatter.string(from: recordedAt) : sanitizedTitle(title)
     }
 
     private static let folderDateFormatter: DateFormatter = {
