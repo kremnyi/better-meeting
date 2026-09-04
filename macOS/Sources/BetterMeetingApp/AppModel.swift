@@ -13,6 +13,42 @@ enum AppState: Equatable {
     case failed
 }
 
+enum ProcessingPhase: Equatable {
+    case finalizingRecording
+    case preparingAudio
+    case preparingModel
+    case downloadingModel
+    case loadingModel
+    case transcribing
+    case writingFiles
+
+    var stepText: String {
+        "Step \(stepNumber) of 5"
+    }
+
+    var statusText: String {
+        switch self {
+        case .finalizingRecording: "Finalizing the recording…"
+        case .preparingAudio: "Preparing audio for transcription…"
+        case .preparingModel: "Checking the speech model…"
+        case .downloadingModel: "Downloading the speech model…"
+        case .loadingModel: "Loading the speech model…"
+        case .transcribing: "Transcribing on this Mac…"
+        case .writingFiles: "Writing transcript.md…"
+        }
+    }
+
+    private var stepNumber: Int {
+        switch self {
+        case .finalizingRecording: 1
+        case .preparingAudio: 2
+        case .preparingModel, .downloadingModel, .loadingModel: 3
+        case .transcribing: 4
+        case .writingFiles: 5
+        }
+    }
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var meetingTitle = ""
@@ -24,6 +60,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var outputRoot: URL
     @Published private(set) var privacyPermission: PrivacyPermission?
     @Published private(set) var processingFraction: Double?
+    @Published private(set) var processingPhase: ProcessingPhase?
 
     private let recorder = MeetingRecorder()
     private let transcriber = LocalTranscriber()
@@ -70,6 +107,10 @@ final class AppModel: ObservableObject {
             return privacyPermission.accessNeededText
         }
 
+        if state == .recording {
+            return "Stop here or from the macOS recording menu"
+        }
+
         let microphoneReady = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         if CGPreflightScreenCaptureAccess() && microphoneReady {
             return "Display, system audio, and microphone ready"
@@ -79,7 +120,10 @@ final class AppModel: ObservableObject {
     }
 
     var captureAccessSymbol: String {
-        privacyPermission == nil ? "shield" : "exclamationmark.shield"
+        if state == .recording {
+            return "stop.circle"
+        }
+        return privacyPermission == nil ? "shield" : "exclamationmark.shield"
     }
 
     func primaryAction() {
@@ -156,6 +200,7 @@ final class AppModel: ObservableObject {
         completedFolder = nil
         privacyPermission = nil
         processingFraction = nil
+        processingPhase = nil
         activeFolder = nil
         recordedAt = nil
         meetingTitle = ""
@@ -170,6 +215,7 @@ final class AppModel: ObservableObject {
         completedFolder = nil
         privacyPermission = nil
         processingFraction = nil
+        processingPhase = nil
         activeFolder = nil
         recordedAt = nil
 
@@ -200,7 +246,7 @@ final class AppModel: ObservableObject {
     }
 
     private func stopRecording() {
-        beginProcessing(status: "Finalizing the recording…")
+        beginProcessing()
         Task {
             await finishRecording(stopCapture: true)
         }
@@ -214,20 +260,19 @@ final class AppModel: ObservableObject {
             return
         }
 
-        beginProcessing(status: "Stopped from macOS. Finalizing the recording…")
+        beginProcessing()
         Task {
             await finishRecording(stopCapture: false)
         }
     }
 
-    private func beginProcessing(status: String) {
+    private func beginProcessing() {
         if let recordedAt {
             elapsed = Date().timeIntervalSince(recordedAt)
         }
         stopTimer()
         state = .processing
-        statusText = status
-        processingFraction = nil
+        setProcessingPhase(.finalizingRecording)
     }
 
     private func finishRecording(stopCapture: Bool) async {
@@ -242,8 +287,13 @@ final class AppModel: ObservableObject {
 
             let recordingURL = folder.appendingPathComponent("recording.mp4")
             let audioURL = folder.appendingPathComponent("audio.m4a")
-            statusText = "Preparing audio…"
-            try await AudioExtractor.extract(from: recordingURL, to: audioURL)
+            setProcessingPhase(.preparingAudio, fraction: 0)
+            try await AudioExtractor.extract(from: recordingURL, to: audioURL) { [weak self] fraction in
+                Task { @MainActor [weak self] in
+                    guard self?.processingPhase == .preparingAudio else { return }
+                    self?.processingFraction = fraction
+                }
+            }
 
             let segments = try await transcriber.transcribe(audioURL: audioURL) { [weak self] progress in
                 Task { @MainActor [weak self] in
@@ -251,8 +301,7 @@ final class AppModel: ObservableObject {
                 }
             }
 
-            statusText = "Writing transcript.md…"
-            processingFraction = nil
+            setProcessingPhase(.writingFiles)
             try MeetingArtifacts.write(
                 title: meetingTitle,
                 recordedAt: recordedAt,
@@ -265,6 +314,7 @@ final class AppModel: ObservableObject {
             state = .complete
             statusText = "Video and transcript are ready."
             processingFraction = nil
+            processingPhase = nil
         } catch {
             if let activeFolder {
                 completedFolder = activeFolder
@@ -291,18 +341,20 @@ final class AppModel: ObservableObject {
 
         switch progress {
         case .preparingModel:
-            statusText = "Preparing the speech model…"
-            processingFraction = nil
+            setProcessingPhase(.preparingModel)
         case .downloadingModel(let fraction):
-            statusText = "Downloading the speech model…"
-            processingFraction = fraction
+            setProcessingPhase(.downloadingModel, fraction: fraction)
         case .loadingModel:
-            statusText = "Loading the speech model…"
-            processingFraction = nil
-        case .transcribing:
-            statusText = "Transcribing on this Mac…"
-            processingFraction = nil
+            setProcessingPhase(.loadingModel)
+        case .transcribing(let fraction):
+            setProcessingPhase(.transcribing, fraction: fraction)
         }
+    }
+
+    private func setProcessingPhase(_ phase: ProcessingPhase, fraction: Double? = nil) {
+        processingPhase = phase
+        statusText = phase.statusText
+        processingFraction = fraction
     }
 
     private func fail(_ error: Error) {
@@ -310,6 +362,7 @@ final class AppModel: ObservableObject {
         state = .failed
         statusText = "Couldn’t finish this recording."
         processingFraction = nil
+        processingPhase = nil
         errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 
         switch error as? RecorderError {

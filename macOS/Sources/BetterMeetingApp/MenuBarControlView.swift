@@ -122,6 +122,12 @@ struct MenuBarControlView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if let phase = model.processingPhase {
+                Text(phase.stepText)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 
@@ -137,18 +143,22 @@ struct MenuBarControlView: View {
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, minHeight: 36)
         } else if model.state == .processing {
-            VStack(alignment: .trailing, spacing: 5) {
+            VStack(alignment: .leading, spacing: 5) {
                 if let fraction = model.processingFraction {
-                    ProgressView(value: fraction)
+                    HStack(spacing: 8) {
+                        ProgressView(value: fraction)
 
-                    Text(fraction, format: .percent.precision(.fractionLength(0)))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        Text(fraction, format: .percent.precision(.fractionLength(0)))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 34, alignment: .trailing)
+                    }
+                    .progressViewStyle(.linear)
                 } else {
                     ProgressView()
+                        .controlSize(.small)
                 }
             }
-            .progressViewStyle(.linear)
             .tint(.signalCoral)
             .accessibilityLabel(model.statusText)
             .frame(maxWidth: .infinity, minHeight: 36)

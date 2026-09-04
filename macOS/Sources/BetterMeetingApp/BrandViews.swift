@@ -38,7 +38,7 @@ extension AppState {
         case .idle: "Ready"
         case .preparing: "Preparing"
         case .recording: "Recording"
-        case .processing: "Processing"
+        case .processing: "Finishing"
         case .complete: "Complete"
         case .failed: "Needs attention"
         }
