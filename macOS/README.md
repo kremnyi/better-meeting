@@ -2,7 +2,8 @@
 
 The native app records the main display, system audio, and microphone with
 ScreenCaptureKit. After recording stops, WhisperKit transcribes the meeting on
-the Mac and the app writes a self-contained meeting folder.
+the Mac and the app writes a self-contained meeting folder. Recording can also
+be started and stopped from the menu bar.
 
 ```text
 2026-09-04 14.30.00 — Product sync/

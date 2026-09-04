@@ -1,127 +1,179 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var model = AppModel()
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             header
-
             Divider()
 
-            VStack(alignment: .leading, spacing: 24) {
-                meetingDetails
-                recorder
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    meetingDetails
+                    recordingStage
 
-                if let error = model.errorMessage {
-                    errorView(error)
+                    if let error = model.errorMessage {
+                        errorView(error)
+                    }
+
+                    outputStrip
+
+                    if model.completedFolder != nil {
+                        completedActions
+                    }
                 }
-
-                if model.completedFolder != nil {
-                    completedActions
-                }
-
-                Spacer(minLength: 0)
-
-                Label(
-                    "Recording and transcription stay on this Mac.",
-                    systemImage: "lock.shield"
-                )
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .padding(28)
             }
-            .padding(28)
         }
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private var header: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Better Meeting")
-                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+        HStack(spacing: 13) {
+            ApplicationIcon(size: 46)
 
-                Text("Record your main display, meeting audio, and microphone.")
-                    .foregroundStyle(.secondary)
-            }
+            Text("Better Meeting")
+                .font(.system(size: 25, weight: .semibold, design: .rounded))
 
             Spacer()
 
-            Label(model.state.label, systemImage: model.state.symbol)
-                .font(.callout.weight(.medium))
-                .foregroundStyle(model.state.tint)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(model.state.tint.opacity(0.1), in: Capsule())
+            StatePill(state: model.state)
         }
         .padding(.horizontal, 28)
-        .padding(.top, 28)
-        .padding(.bottom, 22)
+        .padding(.top, 25)
+        .padding(.bottom, 19)
     }
 
     private var meetingDetails: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            TextField("Meeting title", text: $model.meetingTitle)
-                .textFieldStyle(.roundedBorder)
-                .font(.title3)
-                .disabled(model.state.locksInputs)
-
-            HStack(spacing: 10) {
-                Image(systemName: "folder")
+        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
+            GridRow(alignment: .center) {
+                Text("Meeting title")
+                    .font(.callout.weight(.medium))
                     .foregroundStyle(.secondary)
+                    .frame(width: 92, alignment: .leading)
 
-                Text(model.outputRoot.path)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Button("Choose…") {
-                    model.chooseOutputFolder()
-                }
-                .disabled(model.state.locksInputs)
+                TextField("Product sync", text: $model.meetingTitle)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.body)
+                    .disabled(model.state.locksInputs)
             }
+
+            GridRow(alignment: .center) {
+                Text("Save to")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 92, alignment: .leading)
+
+                HStack(spacing: 10) {
+                    Image(systemName: "folder")
+                        .foregroundStyle(.tertiary)
+
+                    Text(model.outputRoot.path)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 12)
+
+                    Button("Choose…") {
+                        model.chooseOutputFolder()
+                    }
+                    .disabled(model.state.locksInputs)
+                }
+                .padding(.leading, 8)
+            }
+        }
+        .padding(18)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72), in: RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.72), lineWidth: 1)
         }
     }
 
-    private var recorder: some View {
-        VStack(spacing: 16) {
-            Text(model.elapsedText)
-                .font(.system(size: 54, weight: .medium, design: .monospaced))
-                .monospacedDigit()
-                .contentTransition(.numericText())
+    private var recordingStage: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 24) {
+                CaptureMark(state: model.state, size: 92)
 
-            Text(model.statusText)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(model.elapsedText)
+                        .font(.system(size: 46, weight: .medium, design: .monospaced))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
 
-            Button {
-                model.primaryAction()
-            } label: {
-                Label(model.primaryButtonTitle, systemImage: model.primaryButtonSymbol)
-                    .frame(minWidth: 150)
-                    .padding(.vertical, 4)
+                    Text(model.statusText)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 16)
+
+                Button {
+                    model.primaryAction()
+                } label: {
+                    Label(model.primaryButtonTitle, systemImage: model.primaryButtonSymbol)
+                        .frame(minWidth: 138)
+                        .padding(.vertical, 4)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(model.state == .recording ? .signalCoral : .accentColor)
+                .disabled(!model.canPerformPrimaryAction)
+                .keyboardShortcut(.space, modifiers: [.command])
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(model.state == .recording ? .red : .accentColor)
-            .disabled(!model.canPerformPrimaryAction)
-            .keyboardShortcut(.space, modifiers: [.command])
+            .padding(26)
+
+            Divider()
+                .padding(.horizontal, 20)
+
+            HStack(spacing: 18) {
+                Label("Main display", systemImage: "rectangle.on.rectangle")
+                Label("System audio", systemImage: "speaker.wave.2")
+                Label("Microphone", systemImage: "mic")
+
+                Spacer()
+
+                Text("⌘ Space")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.tertiary)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 30)
-        .padding(.horizontal, 24)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 18))
+        .background(Color(nsColor: .textBackgroundColor).opacity(0.82), in: RoundedRectangle(cornerRadius: 18))
         .overlay {
             RoundedRectangle(cornerRadius: 18)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                .stroke(
+                    model.state == .recording
+                        ? Color.signalCoral.opacity(0.7)
+                        : Color(nsColor: .separatorColor).opacity(0.8),
+                    lineWidth: model.state == .recording ? 1.5 : 1
+                )
         }
+    }
+
+    private var outputStrip: some View {
+        HStack(spacing: 20) {
+            Label("MP4 recording", systemImage: "video")
+            Label("Markdown transcript", systemImage: "doc.plaintext")
+
+            Spacer()
+
+            Label("Stored locally", systemImage: "lock.shield")
+                .foregroundStyle(.secondary)
+        }
+        .font(.callout)
+        .padding(.horizontal, 4)
     }
 
     private func errorView(_ message: String) -> some View {
         Label(message, systemImage: "exclamationmark.triangle.fill")
+            .font(.callout)
             .foregroundStyle(.red)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
@@ -129,46 +181,15 @@ struct ContentView: View {
     }
 
     private var completedActions: some View {
-        HStack {
+        HStack(spacing: 10) {
             Button("Open meeting folder") {
                 model.openCompletedFolder()
             }
+            .buttonStyle(.borderedProminent)
 
             Button("Record another meeting") {
                 model.reset()
             }
-        }
-    }
-}
-
-private extension AppState {
-    var label: String {
-        switch self {
-        case .idle: "Ready"
-        case .preparing: "Preparing"
-        case .recording: "Recording"
-        case .processing: "Processing"
-        case .complete: "Complete"
-        case .failed: "Needs attention"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .idle: "circle"
-        case .preparing, .processing: "hourglass"
-        case .recording: "record.circle.fill"
-        case .complete: "checkmark.circle.fill"
-        case .failed: "exclamationmark.triangle.fill"
-        }
-    }
-
-    var tint: Color {
-        switch self {
-        case .recording: .red
-        case .complete: .green
-        case .failed: .orange
-        default: .secondary
         }
     }
 }

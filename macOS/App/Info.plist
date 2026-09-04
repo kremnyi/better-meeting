@@ -12,6 +12,8 @@
     <string>com.kremnyi.bettermeeting</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
+    <key>CFBundleIconFile</key>
+    <string>BetterMeeting</string>
     <key>CFBundleName</key>
     <string>Better Meeting</string>
     <key>CFBundlePackageType</key>
@@ -22,6 +24,8 @@
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
