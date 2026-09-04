@@ -8,6 +8,7 @@ repo_dir=${package_dir:h}
 build_dir="$package_dir/.build"
 app_dir="$package_dir/dist/Better Meeting.app"
 iconset_dir="$build_dir/BetterMeeting.iconset"
+signing_identity=${BETTER_MEETING_SIGNING_IDENTITY:--}
 
 if [[ -d /Applications/Xcode.app ]]; then
     export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
@@ -55,6 +56,10 @@ cp "$package_dir/ThirdPartyNotices.md" "$app_dir/Contents/Resources/ThirdPartyNo
 cp "$build_dir/checkouts/argmax-oss-swift/LICENSE" "$app_dir/Contents/Resources/Argmax-LICENSE.txt"
 cp "$build_dir/checkouts/argmax-oss-swift/NOTICES" "$app_dir/Contents/Resources/Argmax-NOTICES.txt"
 
-codesign --force --deep --sign - "$app_dir"
+codesign --force --deep --sign "$signing_identity" "$app_dir"
+
+if [[ "$signing_identity" == "-" ]]; then
+    echo "Warning: ad-hoc signing changes the app identity after every rebuild; Screen Recording access must then be granted again." >&2
+fi
 
 echo "$app_dir"

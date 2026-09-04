@@ -35,5 +35,17 @@ title and destination, start or stop recording, and open completed transcripts.
 The first recording requests Screen Recording and Microphone access. macOS may
 require the app to be reopened after Screen Recording access is granted.
 
-The build script creates an ad-hoc signed development app. Distribution signing,
-notarization, and release packaging are intentionally not part of this version.
+The build script creates an ad-hoc signed development app by default. macOS ties
+Screen Recording access to the code signature, so replacing it with a newly
+rebuilt ad-hoc bundle requires granting access again and restarting the app.
+
+To keep permissions across local rebuilds, sign with an existing keychain
+identity:
+
+```bash
+BETTER_MEETING_SIGNING_IDENTITY="Apple Development: Your Name (TEAMID)" \
+    ./scripts/build-app.sh
+```
+
+Distribution signing, notarization, and release packaging are intentionally not
+part of this version.
