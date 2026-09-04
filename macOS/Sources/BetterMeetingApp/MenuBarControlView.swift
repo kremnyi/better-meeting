@@ -127,7 +127,7 @@ struct MenuBarControlView: View {
 
     @ViewBuilder
     private var primaryControl: some View {
-        if model.state == .preparing || model.state == .processing {
+        if model.state == .preparing {
             HStack(spacing: 9) {
                 ProgressView()
                     .controlSize(.small)
@@ -135,6 +135,22 @@ struct MenuBarControlView: View {
                     .font(.callout.weight(.medium))
             }
             .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, minHeight: 36)
+        } else if model.state == .processing {
+            VStack(alignment: .trailing, spacing: 5) {
+                if let fraction = model.processingFraction {
+                    ProgressView(value: fraction)
+
+                    Text(fraction, format: .percent.precision(.fractionLength(0)))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                } else {
+                    ProgressView()
+                }
+            }
+            .progressViewStyle(.linear)
+            .tint(.signalCoral)
+            .accessibilityLabel(model.statusText)
             .frame(maxWidth: .infinity, minHeight: 36)
         } else if model.state == .complete {
             VStack(spacing: 10) {

@@ -1,25 +1,47 @@
 import Foundation
 import WhisperKit
 
+enum LocalTranscriptionProgress: Sendable {
+    case preparingModel
+    case downloadingModel(Double)
+    case loadingModel
+    case transcribing
+}
+
 actor LocalTranscriber {
     private var whisper: WhisperKit?
 
-    func transcribe(audioURL: URL) async throws -> [TranscriptSegment] {
+    func transcribe(
+        audioURL: URL,
+        progressHandler: @escaping @Sendable (LocalTranscriptionProgress) -> Void
+    ) async throws -> [TranscriptSegment] {
         let whisper: WhisperKit
         if let loaded = self.whisper {
             whisper = loaded
         } else {
+            progressHandler(.preparingModel)
+            let modelFolder = try await WhisperKit.download(
+                variant: "small",
+                progressCallback: { progress in
+                    let fraction = progress.fractionCompleted
+                    guard fraction.isFinite else { return }
+                    progressHandler(.downloadingModel(min(max(fraction, 0), 1)))
+                }
+            )
+
+            progressHandler(.loadingModel)
             let loaded = try await WhisperKit(
-                model: "small",
+                modelFolder: modelFolder.path,
                 verbose: false,
                 prewarm: false,
                 load: true,
-                download: true
+                download: false
             )
             self.whisper = loaded
             whisper = loaded
         }
 
+        progressHandler(.transcribing)
         let inputOptions = AudioInputOptions(audioLoadingMode: .incremental)
         let decodingOptions = DecodingOptions(
             verbose: false,

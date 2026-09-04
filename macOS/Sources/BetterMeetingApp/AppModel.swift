@@ -23,6 +23,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var completedFolder: URL?
     @Published private(set) var outputRoot: URL
     @Published private(set) var privacyPermission: PrivacyPermission?
+    @Published private(set) var processingFraction: Double?
 
     private let recorder = MeetingRecorder()
     private let transcriber = LocalTranscriber()
@@ -122,6 +123,7 @@ final class AppModel: ObservableObject {
         errorMessage = nil
         completedFolder = nil
         privacyPermission = nil
+        processingFraction = nil
         activeFolder = nil
         recordedAt = nil
         meetingTitle = ""
@@ -135,6 +137,7 @@ final class AppModel: ObservableObject {
         errorMessage = nil
         completedFolder = nil
         privacyPermission = nil
+        processingFraction = nil
         activeFolder = nil
         recordedAt = nil
 
@@ -171,6 +174,7 @@ final class AppModel: ObservableObject {
         stopTimer()
         state = .processing
         statusText = "Saving the video…"
+        processingFraction = nil
 
         Task {
             do {
@@ -185,10 +189,14 @@ final class AppModel: ObservableObject {
                 statusText = "Preparing audio…"
                 try await AudioExtractor.extract(from: recordingURL, to: audioURL)
 
-                statusText = "Transcribing on this Mac. First use downloads the speech model…"
-                let segments = try await transcriber.transcribe(audioURL: audioURL)
+                let segments = try await transcriber.transcribe(audioURL: audioURL) { [weak self] progress in
+                    Task { @MainActor [weak self] in
+                        self?.updateTranscriptionProgress(progress)
+                    }
+                }
 
                 statusText = "Writing transcript.md…"
+                processingFraction = nil
                 try MeetingArtifacts.write(
                     title: meetingTitle,
                     recordedAt: recordedAt,
@@ -200,6 +208,7 @@ final class AppModel: ObservableObject {
                 completedFolder = folder
                 state = .complete
                 statusText = "Video and transcript are ready."
+                processingFraction = nil
             } catch {
                 if let activeFolder {
                     completedFolder = activeFolder
@@ -222,10 +231,30 @@ final class AppModel: ObservableObject {
         timer = nil
     }
 
+    private func updateTranscriptionProgress(_ progress: LocalTranscriptionProgress) {
+        guard state == .processing else { return }
+
+        switch progress {
+        case .preparingModel:
+            statusText = "Preparing the speech model…"
+            processingFraction = nil
+        case .downloadingModel(let fraction):
+            statusText = "Downloading the speech model…"
+            processingFraction = fraction
+        case .loadingModel:
+            statusText = "Loading the speech model…"
+            processingFraction = nil
+        case .transcribing:
+            statusText = "Transcribing on this Mac…"
+            processingFraction = nil
+        }
+    }
+
     private func fail(_ error: Error) {
         stopTimer()
         state = .failed
         statusText = "Couldn’t finish this recording."
+        processingFraction = nil
         errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 
         switch error as? RecorderError {
