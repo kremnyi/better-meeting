@@ -29,10 +29,10 @@ Managed Macs may not allow this exception.
 
 Open **About** in the menu footer to see the installed version and release page.
 **Check for Updates** contacts GitHub when clicked and reports whether a newer
-release is available. For apps installed with Homebrew at `/opt/homebrew`,
-**Update with Homebrew** opens Terminal, quits the app, and reopens it after a
-successful update. Finish any recording or transcription first. ZIP installations
-use the release-page download.
+release is available. When one is found, **Update to [version]** appears for apps
+installed with Homebrew at `/opt/homebrew`. It opens Terminal, quits the app,
+and reopens it after a successful update. Finish any recording, transcription,
+or export first. ZIP installations get a **Download [version]** link instead.
 
 To update with Homebrew, finish any active recording, quit the app, and run:
 

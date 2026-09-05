@@ -2,56 +2,66 @@ import SwiftUI
 
 struct AboutView: View {
     @EnvironmentObject private var model: AppModel
-    private let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-    private let homebrewAvailable = HomebrewUpdate.isAvailable
-    @State private var checking = false
+    var version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+    var homebrewAvailable = HomebrewUpdate.isAvailable
+    @State var status: ReleaseCheck.Status = .unchecked
     @State private var updating = false
-    @State private var result: String?
+    @State private var updateError: String?
 
     var body: some View {
-        VStack(spacing: 12) {
-            Text("Better Meeting")
-                .font(.headline)
-            Text(version.map { "Version \($0)" } ?? "Development build")
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-
-            Link("Release page", destination: ReleaseCheck.releaseURL)
-
-            Button(checking ? "Checking…" : "Check for Updates") {
-                Task { await checkForUpdates() }
-            }
-            .disabled(checking || version == nil)
-
-            if homebrewAvailable {
-                Button(updating ? "Opening Terminal…" : "Update with Homebrew") {
-                    Task { await updateWithHomebrew() }
-                }
-                .disabled(updating || model.state != .idle)
-                .help("Finish your recording or transcription before updating")
-                Text("Opens Terminal and quits this app. Reopens after a successful update.")
-                    .font(.caption)
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Better Meeting").font(.headline)
+                Text(version.map { "Version \($0)" } ?? "Development build")
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
             }
 
-            if let result {
-                Text(result)
-                    .font(.callout)
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(updateError ?? status.message)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 32, alignment: .topLeading)
+
+                if let newerVersion = status.availableVersion {
+                    if homebrewAvailable {
+                        Button(updating ? "Opening Terminal…" : "Update to \(newerVersion)") {
+                            Task { await updateWithHomebrew() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(updating || model.state != .idle)
+                        Text(model.state == .idle
+                             ? "Uses Homebrew in Terminal. Quits this app and reopens it after updating."
+                             : "Finish recording, transcription, or export before updating.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Link("Download \(newerVersion)", destination: ReleaseCheck.releaseURL)
+                            .buttonStyle(.borderedProminent)
+                    }
+                } else {
+                    Button(status == .checking ? "Checking…" : status == .failed ? "Try Again" : "Check for Updates") {
+                        Task { await checkForUpdates() }
+                    }
+                    .disabled(status == .checking || version == nil)
+                }
             }
+
+            Link("Release notes", destination: ReleaseCheck.releaseURL)
         }
-        .multilineTextAlignment(.center)
+        .font(.callout)
+        .controlSize(.small)
         .padding(20)
-        .frame(width: 280)
+        .frame(width: 304, alignment: .leading)
     }
 
     @MainActor
     private func checkForUpdates() async {
-        guard !checking, let version else { return }
-        checking = true
-        result = nil
-        defer { checking = false }
+        guard status != .checking, let version else { return }
+        status = .checking
+        updateError = nil
 
         do {
             var request = URLRequest(
@@ -60,39 +70,56 @@ struct AboutView: View {
             )
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
             let (data, response) = try await URLSession.shared.data(for: request)
-            let newerVersion = try ReleaseCheck.newerVersion(
+            status = try ReleaseCheck.status(
                 from: data, statusCode: (response as? HTTPURLResponse)?.statusCode,
                 installedVersion: version
             )
-            result = newerVersion.map { "Version \($0) is available." }
-                ?? "You're up to date."
         } catch {
-            result = "Couldn't check for updates. Try again or open the release page."
+            status = .failed
         }
     }
 
     @MainActor
     private func updateWithHomebrew() async {
-        guard !updating, model.state == .idle else { return }
+        guard !updating, status.availableVersion != nil, model.state == .idle else { return }
         updating = true
+        updateError = nil
         defer { updating = false }
         do {
             try await HomebrewUpdate.launch()
             if model.state == .idle {
                 NSApp.terminate(nil)
             } else {
-                result = "Terminal is waiting. Finish your meeting and quit to continue updating."
+                updateError = "Terminal is waiting. Finish your meeting and quit to continue updating."
             }
         } catch {
-            result = "Couldn't start the update. Try again or open the release page."
+            updateError = "Couldn't start the update. Try again or open the release notes."
         }
     }
 }
 
 enum ReleaseCheck {
+    enum Status: Equatable {
+        case unchecked, checking, current, available(String), failed
+
+        var availableVersion: String? {
+            if case .available(let version) = self { version } else { nil }
+        }
+
+        var message: String {
+            switch self {
+            case .unchecked: "Updates are checked on request."
+            case .checking: "Checking GitHub for a newer release…"
+            case .current: "You're up to date."
+            case .available(let version): "Version \(version) is available."
+            case .failed: "Couldn't check for updates. Try again or open the release notes."
+            }
+        }
+    }
+
     static let releaseURL = URL(string: "https://github.com/kremnyi/better-meeting/releases/latest")!
 
-    static func newerVersion(from data: Data, statusCode: Int?, installedVersion: String) throws -> String? {
+    static func status(from data: Data, statusCode: Int?, installedVersion: String) throws -> Status {
         struct Release: Decodable {
             let tag_name: String
             let draft: Bool
@@ -111,6 +138,6 @@ enum ReleaseCheck {
               installedVersion.range(of: pattern, options: .regularExpression) != nil else {
             throw URLError(.cannotParseResponse)
         }
-        return version.compare(installedVersion, options: .numeric) == .orderedDescending ? version : nil
+        return version.compare(installedVersion, options: .numeric) == .orderedDescending ? .available(version) : .current
     }
 }

@@ -7,19 +7,23 @@ final class ReleaseCheckTests: XCTestCase {
         func response(_ tag: String, draft: Bool = false, prerelease: Bool = false) throws -> Data {
             try JSONSerialization.data(withJSONObject: ["tag_name": tag, "draft": draft, "prerelease": prerelease])
         }
+        for state: ReleaseCheck.Status in [.unchecked, .checking, .current, .failed] {
+            XCTAssertNil(state.availableVersion, "Only a confirmed newer release may offer an update")
+        }
+        XCTAssertEqual(ReleaseCheck.Status.available("0.10.0").availableVersion, "0.10.0")
         let latest = try response("v0.10.0")
-        XCTAssertEqual(try ReleaseCheck.newerVersion(from: latest, statusCode: 200, installedVersion: "0.9.0"), "0.10.0")
-        XCTAssertNil(try ReleaseCheck.newerVersion(from: latest, statusCode: 200, installedVersion: "0.10.0"))
-        XCTAssertNil(try ReleaseCheck.newerVersion(from: latest, statusCode: 200, installedVersion: "1.0.0"))
+        XCTAssertEqual(try ReleaseCheck.status(from: latest, statusCode: 200, installedVersion: "0.9.0"), .available("0.10.0"))
+        XCTAssertEqual(try ReleaseCheck.status(from: latest, statusCode: 200, installedVersion: "0.10.0"), .current)
+        XCTAssertEqual(try ReleaseCheck.status(from: latest, statusCode: 200, installedVersion: "1.0.0"), .current)
         for invalid in [try response("v1.0.0-beta"), try response("v1.0.0\n"), try response("../latest"),
                         try response("v1.0.0", draft: true), try response("v1.0.0", prerelease: true),
                         Data("{\"message\":\"API rate limit exceeded\"}".utf8)] {
-            XCTAssertThrowsError(try ReleaseCheck.newerVersion(from: invalid, statusCode: 200, installedVersion: "0.9.0"))
+            XCTAssertThrowsError(try ReleaseCheck.status(from: invalid, statusCode: 200, installedVersion: "0.9.0"))
         }
         for status in [nil, 403, 404, 500] as [Int?] {
-            XCTAssertThrowsError(try ReleaseCheck.newerVersion(from: latest, statusCode: status, installedVersion: "0.9.0"))
+            XCTAssertThrowsError(try ReleaseCheck.status(from: latest, statusCode: status, installedVersion: "0.9.0"))
         }
-        XCTAssertThrowsError(try ReleaseCheck.newerVersion(from: latest, statusCode: 200, installedVersion: "Development"))
+        XCTAssertThrowsError(try ReleaseCheck.status(from: latest, statusCode: 200, installedVersion: "Development"))
     }
 
     func testHomebrewOnlyMatchesTheManagedApp() throws {
