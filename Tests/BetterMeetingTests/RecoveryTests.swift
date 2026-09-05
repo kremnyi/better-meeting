@@ -105,6 +105,49 @@ final class RecoveryTests: XCTestCase {
     }
 
     @MainActor
+    func testBackgroundModelSetupCanRetryWithoutTakingOverRecording() async throws {
+        let suite = "BetterMeetingSetup.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.set(FileManager.default.temporaryDirectory.appendingPathComponent(suite), forKey: "outputFolder")
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = AppModel(defaults: defaults)
+        model.meetingTitle = "Next meeting"
+        var attempts = 0
+        model.prepareSpeechModel { _ in
+            attempts += 1
+            throw URLError(.notConnectedToInternet)
+        }
+        let first = try XCTUnwrap(model.modelPreparationTask)
+        model.prepareSpeechModel { _ in XCTFail("Setup must reuse the running task") }
+        _ = await first.result
+        XCTAssertEqual(attempts, 1)
+        XCTAssertEqual(model.state, .idle)
+        XCTAssertEqual(model.primaryButtonTitle, "Start recording")
+        XCTAssertEqual(model.meetingTitle, "Next meeting")
+        XCTAssertNil(model.errorMessage)
+        XCTAssertNotNil(model.modelSetupError)
+        XCTAssertFalse(model.modelReady)
+        XCTAssertNil(model.modelPreparationTask)
+
+        model.prepareSpeechModel { _ in attempts += 1 }
+        try await model.modelPreparationTask?.value
+        XCTAssertEqual(attempts, 2)
+        XCTAssertTrue(model.modelReady)
+        XCTAssertNil(model.modelSetupError)
+        XCTAssertEqual(model.state, .idle)
+        model.prepareSpeechModel()
+        XCTAssertNil(model.modelPreparationTask, "A ready model needs no further setup")
+
+        model.prepareSpeechModel { _ in try Task.checkCancellation() }
+        let cancelled = try XCTUnwrap(model.modelPreparationTask)
+        cancelled.cancel()
+        _ = await cancelled.result
+        XCTAssertFalse(model.modelReady)
+        XCTAssertNil(model.modelPreparationTask)
+        XCTAssertEqual(model.state, .idle)
+    }
+
+    @MainActor
     func testCaptureOptionsDoesNotResizeMenu() throws {
         let suite = "BetterMeetingLayout.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

@@ -69,6 +69,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var searchingHistory = false
     @Published private(set) var unfinishedRecordings: [MeetingHistoryItem] = []
     @Published private(set) var modelReady = LocalTranscriber.cachedModelFolder() != nil
+    @Published private(set) var modelSetupStatus = "Preparing speech model…"
+    @Published private(set) var modelSetupFraction: Double?
+    @Published private(set) var modelSetupError: String?
+    private(set) var modelPreparationTask: Task<Void, Error>?
     @Published private(set) var cancellingTranscription = false
     @Published private(set) var displays: [(id: CGDirectDisplayID, name: String)] = []
     @Published private(set) var microphones: [AVCaptureDevice] = []
@@ -105,7 +109,6 @@ final class AppModel: ObservableObject {
     private var recordedAt: Date?
     private var titleWasProvided = true
     private var timer: Timer?
-    private var preparingModelOnly = false
     private var quitWhenFinished = false
     private(set) var processingTask: Task<Void, Never>?
     private(set) var historySearchTask: Task<Void, Never>?
@@ -147,8 +150,6 @@ final class AppModel: ObservableObject {
         case .failed:
             if privacyPermission == .screenRecording {
                 "Restart Better Meeting"
-            } else if preparingModelOnly {
-                "Retry model setup"
             } else if retryableMeeting != nil {
                 "Retry transcription"
             } else {
@@ -164,7 +165,7 @@ final class AppModel: ObservableObject {
         if state == .failed, privacyPermission == .screenRecording {
             return "arrow.clockwise"
         }
-        if state == .failed, preparingModelOnly || retryableMeeting != nil {
+        if state == .failed, retryableMeeting != nil {
             return "arrow.clockwise"
         }
         return "record.circle"
@@ -199,8 +200,6 @@ final class AppModel: ObservableObject {
             stopRecording()
         } else if state == .failed, privacyPermission == .screenRecording {
             restartApplication()
-        } else if state == .failed, preparingModelOnly {
-            prepareSpeechModel()
         } else if state == .failed, let item = retryableMeeting {
             retryTranscription(item, languages: lastTranscriptionOptions?.languages, hints: lastTranscriptionOptions?.hints)
         } else if state == .idle || state == .failed {
@@ -221,33 +220,60 @@ final class AppModel: ObservableObject {
     }
 
     func prepareSpeechModel() {
-        guard state == .idle || state == .failed else { return }
-        preparingModelOnly = true
-        errorMessage = nil
-        privacyPermission = nil
-        completedFolder = nil
-        state = .preparing
-        setProcessingPhase(.preparingModel)
-        Task {
+        guard !modelReady, state == .idle || state == .recording else { return }
+        prepareSpeechModel { [transcriber] progress in
+            _ = try await transcriber.prepare(progressHandler: progress)
+        }
+    }
+
+    func prepareSpeechModel(
+        _ prepare: @escaping (@escaping @Sendable (LocalTranscriptionProgress) -> Void) async throws -> Void
+    ) {
+        guard modelPreparationTask == nil else { return }
+        modelReady = false
+        modelSetupError = nil
+        modelSetupFraction = nil
+        modelSetupStatus = "Preparing speech model…"
+        modelPreparationTask = Task {
+            defer { modelPreparationTask = nil }
             do {
-                try await transcriber.prepare { [weak self] progress in
-                    Task { @MainActor [weak self] in self?.updateTranscriptionProgress(progress) }
+                try await prepare { [weak self] progress in
+                    Task { @MainActor [weak self] in self?.updateModelSetupProgress(progress) }
                 }
                 modelReady = true
-                preparingModelOnly = false
-                processingPhase = nil
-                processingFraction = nil
-                state = .idle
-                statusText = "Speech model ready on this Mac."
+                modelSetupStatus = "Speech model ready"
             } catch {
-                fail(error)
+                modelReady = false
+                modelSetupError = error.localizedDescription
+                modelSetupStatus = "Speech model unavailable"
+                throw error
             }
+        }
+    }
+
+    private func updateModelSetupProgress(_ progress: LocalTranscriptionProgress) {
+        guard modelPreparationTask != nil else { return }
+        switch progress {
+        case .preparingModel:
+            modelSetupStatus = "Checking speech model…"
+            modelSetupFraction = nil
+        case .downloadingModel(let fraction):
+            modelSetupStatus = "Downloading speech model…"
+            modelSetupFraction = fraction
+        case .loadingModel:
+            modelSetupStatus = "Loading speech model…"
+            modelSetupFraction = nil
+        case .transcribing:
+            return
+        }
+        if state == .processing,
+           [.preparingModel, .downloadingModel, .loadingModel].contains(processingPhase) {
+            updateTranscriptionProgress(progress)
         }
     }
 
     func retryTranscription(_ item: MeetingHistoryItem, languages: [String]? = nil, hints: String? = nil) {
         guard state == .idle || state == .failed else { return }
-        preparingModelOnly = false
         activeFolder = item.folderURL
         completedFolder = nil
         recordedAt = item.recordedAt
@@ -284,7 +310,6 @@ final class AppModel: ObservableObject {
         state = .idle
         errorMessage = nil
         privacyPermission = nil
-        preparingModelOnly = false
         meetingTitle = ""
         refreshHistory()
     }
@@ -429,7 +454,6 @@ final class AppModel: ObservableObject {
     }
 
     private func startRecording() {
-        preparingModelOnly = false
         stopTimer()
         elapsed = 0
         state = .preparing
@@ -544,6 +568,16 @@ final class AppModel: ObservableObject {
                 )
             }
 
+            if let preparation = modelPreparationTask {
+                setProcessingPhase(.preparingModel, fraction: modelSetupFraction)
+                statusText = modelSetupStatus
+                try await withTaskCancellationHandler {
+                    try await preparation.value
+                } onCancel: {
+                    preparation.cancel()
+                }
+                try Task.checkCancellation()
+            }
             let segments = try await transcriber.transcribe(
                 audioURL: audioURL, languages: languages, hints: hints
             ) { [weak self] progress in
@@ -579,6 +613,7 @@ final class AppModel: ObservableObject {
 
             completedFolder = folder
             modelReady = LocalTranscriber.cachedModelFolder() != nil
+            modelSetupError = nil
             refreshHistory()
             await MeetingNotifications.post(
                 title: transcriptionHistory.first(where: { $0.folderURL == folder })?.title ?? folder.lastPathComponent,
@@ -638,7 +673,7 @@ final class AppModel: ObservableObject {
 
     private func updateTranscriptionProgress(_ progress: LocalTranscriptionProgress) {
         guard !cancellingTranscription else { return }
-        guard state == .processing || (state == .preparing && preparingModelOnly) else { return }
+        guard state == .processing else { return }
 
         switch progress {
         case .preparingModel:
@@ -667,7 +702,7 @@ final class AppModel: ObservableObject {
         processingFraction = nil
         processingPhase = nil
         errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        if let activeFolder, !preparingModelOnly {
+        if let activeFolder {
             completedFolder = activeFolder
         }
         refreshHistory()

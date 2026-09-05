@@ -39,9 +39,10 @@ signatures change with new builds. Uninstalling the app keeps saved meetings.
 
 ## Record a meeting
 
-1. Open the menu bar icon. Use **Set up transcription** to download and load the
-   multilingual Whisper `large-v3-turbo` model before your first meeting. Otherwise,
-   setup happens when that recording stops.
+1. Open the app. It downloads and prepares the multilingual Whisper `large-v3-turbo`
+   model automatically in the background. The menu shows progress; you can start
+   recording during setup. Transcription waits until the model is ready. If setup
+   fails, use **Retry setup**.
 2. Enter a meeting name or leave it empty for automatic naming.
 3. Open **Options** in the bottom-left corner to choose a display, microphone, and save folder.
    The app remembers these choices. Defaults are the main display, system

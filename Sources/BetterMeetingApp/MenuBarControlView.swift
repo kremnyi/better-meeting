@@ -99,18 +99,31 @@ struct MenuBarControlView: View {
 
             captureSummary
 
-            if !model.modelReady {
-                Button("Set up transcription", action: model.prepareSpeechModel)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                Text("Download the speech model before your first meeting.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            modelSetupStatus
 
             Divider()
 
             historySection
+        }
+    }
+
+    @ViewBuilder
+    private var modelSetupStatus: some View {
+        if !model.modelReady {
+            VStack(alignment: .leading, spacing: 6) {
+                if let error = model.modelSetupError {
+                    Text("Speech model unavailable. You can still record.")
+                    Button("Retry setup", action: model.prepareSpeechModel)
+                        .help(error)
+                } else {
+                    Text(model.modelSetupStatus)
+                    ProgressView(value: model.modelSetupFraction)
+                        .progressViewStyle(.linear)
+                        .accessibilityLabel(model.modelSetupStatus)
+                    Text("You can record while setup finishes.")
+                }
+            }
+            .font(.callout)
         }
     }
 
@@ -338,6 +351,8 @@ struct MenuBarControlView: View {
             primaryActionButton
 
             captureSummary
+
+            modelSetupStatus
         }
     }
 

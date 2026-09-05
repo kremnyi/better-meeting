@@ -4,7 +4,11 @@ import UserNotifications
 @main
 struct BetterMeetingApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var model = AppModel()
+    @StateObject private var model: AppModel = {
+        let model = AppModel()
+        model.prepareSpeechModel()
+        return model
+    }()
 
     var body: some Scene {
         MenuBarExtra {
