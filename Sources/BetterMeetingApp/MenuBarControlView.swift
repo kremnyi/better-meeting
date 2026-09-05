@@ -5,6 +5,7 @@ struct MenuBarControlView: View {
     @EnvironmentObject private var model: AppModel
     @State var captureOptionsPresented = false
     @State private var retranscribingMeeting: MeetingHistoryItem?
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -208,36 +209,53 @@ struct MenuBarControlView: View {
             Text("Recent meetings")
                 .font(.callout.weight(.medium))
 
-            TextField("Search all titles and transcripts", text: $model.historyQuery)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityLabel("Search all meetings")
+            HStack(spacing: 6) {
+                TextField("Search meetings", text: $model.historyQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($searchFocused)
+                    .accessibilityLabel("Search all meetings")
+                    .help("Search all titles and transcripts")
 
-            if model.searchingHistory {
-                Text("Searching meetings…")
-                    .font(.caption).foregroundStyle(.secondary)
+                Button {
+                    model.historyQuery = ""
+                    searchFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.borderless)
+                .help("Clear search")
+                .accessibilityLabel("Clear search")
+                .disabled(model.historyQuery.isEmpty)
+                .opacity(model.historyQuery.isEmpty ? 0 : 1)
+                .accessibilityHidden(model.historyQuery.isEmpty)
             }
 
-            if model.transcriptionHistory.isEmpty {
-                Text(model.historyQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                     ? "Finished meetings will appear here. Open their folders in Finder."
-                     : "No matching meetings.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(model.transcriptionHistory) { item in
-                            historyRow(item)
+            Group {
+                if model.searchingHistory {
+                    Text("Searching meetings…")
+                } else if model.transcriptionHistory.isEmpty {
+                    Text(model.historyQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                         ? "Finished meetings will appear here. Open their folders in Finder."
+                         : "No matching meetings.")
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(model.transcriptionHistory) { item in
+                                historyRow(item)
 
-                            if item.id != model.transcriptionHistory.last?.id {
-                                Divider()
+                                if item.id != model.transcriptionHistory.last?.id {
+                                    Divider()
+                                }
                             }
                         }
+                        .padding(.trailing, 16)
                     }
-                    .padding(.trailing, 16)
                 }
-                .frame(height: historyListHeight)
             }
+            .font(.callout)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(height: model.historyListHeight, alignment: .top)
 
             Button {
                 model.openMeetingsFolder()
@@ -248,10 +266,6 @@ struct MenuBarControlView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
-    }
-
-    private var historyListHeight: CGFloat {
-        CGFloat(min(model.transcriptionHistory.count, 6)) * 44
     }
 
     private func historyRow(_ item: MeetingHistoryItem) -> some View {
@@ -273,8 +287,7 @@ struct MenuBarControlView: View {
                     Text(Timecode.string(item.duration))
                         .monospacedDigit()
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.callout)
             }
 
             Spacer(minLength: 8)
@@ -283,12 +296,15 @@ struct MenuBarControlView: View {
                 NSWorkspace.shared.open(item.folderURL)
             } label: {
                 Image(systemName: "folder")
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .frame(width: 28, height: 28)
             }
             .buttonStyle(.borderless)
             .help("Show in Finder")
-            .accessibilityLabel("Show \(item.title) in Finder")
+            .accessibilityLabel("Show \(item.title), \(item.recordedAt.formatted(date: .abbreviated, time: .standard)), in Finder")
         }
-        .frame(minHeight: 43)
+        .frame(minHeight: 47)
         .contentShape(Rectangle())
         .contextMenu {
             Button("Copy Transcript") {
@@ -449,8 +465,8 @@ struct MenuBarControlView: View {
 
     private var captureSummary: some View {
         Label(model.captureAccessText, systemImage: model.captureAccessSymbol)
-            .font(.caption)
-            .foregroundStyle(model.privacyPermission == nil ? Color.secondary : Color.orange)
+            .font(.callout)
+            .foregroundStyle(model.privacyPermission == nil ? Color.primary : Color.orange)
     }
 
     private func errorView(_ message: String) -> some View {

@@ -13,7 +13,7 @@ swift test
 Tests cover meeting recovery, audio exports, saved preferences, capture presets,
 automatic titles, multilingual merging, and per-language cache recovery.
 They also cover cancellation, vocabulary and language settings, safe transcript
-replacement, stereo audio meters, and history search.
+replacement, stereo audio meters, background model setup, and stable history search layout.
 GitHub Actions runs the same checks and keeps any macOS
 crash reports when a check fails.
 

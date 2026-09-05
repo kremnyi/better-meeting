@@ -375,6 +375,10 @@ final class AppModel: ObservableObject {
         searchHistory()
     }
 
+    var historyListHeight: CGFloat {
+        CGFloat(max(2, min(completedMeetings.count, 6))) * 48
+    }
+
     private func searchHistory() {
         historySearchTask?.cancel()
         let query = historyQuery.trimmingCharacters(in: .whitespacesAndNewlines)

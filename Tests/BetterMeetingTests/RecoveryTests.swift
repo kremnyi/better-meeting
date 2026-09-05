@@ -162,6 +162,42 @@ final class RecoveryTests: XCTestCase {
     }
 
     @MainActor
+    func testSearchDoesNotResizeMenu() async throws {
+        let suite = "BetterMeetingSearchLayout.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: root)
+        }
+        defaults.set(root, forKey: "outputFolder")
+        for index in 0..<7 {
+            let date = Date(timeIntervalSince1970: Double(index * 60))
+            let folder = try MeetingArtifacts.createDirectory(in: root, title: "Meeting \(index)", recordedAt: date)
+            try MeetingArtifacts.write(title: "Meeting \(index)", recordedAt: date, duration: 60, segments: [], to: folder)
+        }
+        _ = NSApplication.shared
+        let model = AppModel(defaults: defaults)
+        func size() -> NSSize {
+            NSHostingView(rootView: MenuBarControlView().environmentObject(model)).fittingSize
+        }
+        let initial = size()
+        model.historyQuery = "Meeting 1"
+        XCTAssertTrue(model.searchingHistory)
+        XCTAssertEqual(size(), initial)
+        await model.historySearchTask?.value
+        XCTAssertEqual(model.transcriptionHistory.count, 1)
+        XCTAssertEqual(size(), initial)
+        model.historyQuery = "no such meeting"
+        await model.historySearchTask?.value
+        XCTAssertTrue(model.transcriptionHistory.isEmpty)
+        XCTAssertEqual(size(), initial)
+        model.historyQuery = ""
+        XCTAssertEqual(model.transcriptionHistory.count, 7)
+        XCTAssertEqual(size(), initial)
+    }
+
+    @MainActor
     func testRenderMenuBarPreview() throws {
         guard let path = ProcessInfo.processInfo.environment["BETTER_MEETING_PREVIEW_PATH"] else {
             throw XCTSkip("Set BETTER_MEETING_PREVIEW_PATH to render the menu with fictional meetings")
