@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import CoreMedia
 import Foundation
 import SwiftUI
@@ -50,12 +51,42 @@ final class RecoveryTests: XCTestCase {
         let audioURL = root.appendingPathComponent("audio.m4a")
         let original = Data("saved meeting audio".utf8)
         try original.write(to: audioURL)
-        do {
-            try await AudioExtractor.extract(from: root.appendingPathComponent("missing.mp4"), to: audioURL) { _ in }
-            XCTFail("Exporting a missing recording must fail")
-        } catch {
-            XCTAssertEqual(try Data(contentsOf: audioURL), original)
+        let corruptURL = root.appendingPathComponent("corrupt.mp4")
+        try Data("incomplete recording".utf8).write(to: corruptURL)
+        for recordingURL in [root.appendingPathComponent("missing.mp4"), corruptURL] {
+            do {
+                try await AudioExtractor.extract(from: recordingURL, to: audioURL) { _ in
+                    XCTFail("Invalid recordings must be rejected before export starts")
+                }
+                XCTFail("Exporting an invalid recording must fail")
+            } catch {
+                XCTAssertEqual(try Data(contentsOf: audioURL), original)
+            }
         }
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: root.path)
+            .contains { $0.hasPrefix(".audio-") })
+    }
+
+    func testSuccessfulExportReplacesExistingAudio() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceURL = root.appendingPathComponent("source.wav")
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1))
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4_800))
+        buffer.frameLength = buffer.frameCapacity
+        try XCTUnwrap(buffer.floatChannelData)[0].update(repeating: 0, count: Int(buffer.frameLength))
+        do {
+            let source = try AVAudioFile(forWriting: sourceURL, settings: format.settings)
+            try source.write(from: buffer)
+        }
+        let audioURL = root.appendingPathComponent("audio.m4a")
+        try Data("previous audio".utf8).write(to: audioURL)
+        try await AudioExtractor.extract(from: sourceURL, to: audioURL) { _ in }
+        XCTAssertGreaterThan(try AVAudioFile(forReading: audioURL).length, 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceURL.path))
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: root.path)
+            .contains { $0.hasPrefix(".audio-") })
     }
 
     func testEmptyModelDirectoriesAreNotAReadyCache() throws {
