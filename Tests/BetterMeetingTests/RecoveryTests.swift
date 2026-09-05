@@ -1,4 +1,5 @@
 import AppKit
+import CoreMedia
 import Foundation
 import SwiftUI
 import XCTest
@@ -120,17 +121,51 @@ final class RecoveryTests: XCTestCase {
             }
         }
         let model = AppModel(defaults: defaults)
+        XCTAssertEqual(model.captureResolution, .pixels1440)
+        XCTAssertEqual(model.captureQuality, .standard)
         model.setOutputFolder(root)
         model.selectedDisplayID = 42
         model.selectedMicrophoneID = "test-mic"
+        model.captureResolution = .pixels1920
+        model.captureQuality = .smooth
         let reopened = AppModel(defaults: defaults)
         XCTAssertEqual(reopened.outputRoot.path, root.path)
         XCTAssertEqual(reopened.selectedDisplayID, 42)
         XCTAssertEqual(reopened.selectedMicrophoneID, "test-mic")
+        XCTAssertEqual(reopened.captureResolution, .pixels1920)
+        XCTAssertEqual(reopened.captureQuality, .smooth)
         XCTAssertEqual(reopened.transcriptionHistory.count, 10)
         XCTAssertEqual(reopened.transcriptionHistory.first?.title, "Meeting 11")
         XCTAssertEqual(reopened.unfinishedRecordings.map(\.title), ["Meeting 0"])
         XCTAssertEqual(reopened.terminationReply(), .terminateNow)
+        defaults.set(999, forKey: "captureResolution")
+        defaults.set(999, forKey: "captureQuality")
+        let invalidPreferences = AppModel(defaults: defaults)
+        XCTAssertEqual(invalidPreferences.captureResolution, .pixels1440)
+        XCTAssertEqual(invalidPreferences.captureQuality, .standard)
+    }
+
+    @MainActor
+    func testVideoPresetsRespectSourceSizeAndFrameRate() {
+        for resolution in CaptureResolution.allCases {
+            for quality in CaptureQuality.allCases {
+                for source in [CGSize(width: 3840, height: 2160), CGSize(width: 2160, height: 3840),
+                               CGSize(width: 1025, height: 769), CGSize(width: 5120, height: 1440)] {
+                    let configuration = MeetingRecorder.videoConfiguration(
+                        sourceSize: source, resolution: resolution, quality: quality
+                    )
+                    let scale = min(1, CGFloat(resolution.rawValue) / max(source.width, source.height))
+                    XCTAssertLessThanOrEqual(max(configuration.width, configuration.height), resolution.rawValue)
+                    XCTAssertLessThanOrEqual(CGFloat(configuration.width), source.width)
+                    XCTAssertLessThanOrEqual(CGFloat(configuration.height), source.height)
+                    XCTAssertEqual(configuration.width % 2, 0)
+                    XCTAssertEqual(configuration.height % 2, 0)
+                    XCTAssertEqual(CGFloat(configuration.width), source.width * scale, accuracy: 2)
+                    XCTAssertEqual(CGFloat(configuration.height), source.height * scale, accuracy: 2)
+                    XCTAssertEqual(CMTimeGetSeconds(configuration.minimumFrameInterval), 1 / Double(quality.rawValue), accuracy: 0.0001)
+                }
+            }
+        }
     }
 
     func testModelPreparationAcrossColdLaunches() async throws {

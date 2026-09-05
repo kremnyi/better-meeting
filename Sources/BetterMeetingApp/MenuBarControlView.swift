@@ -93,6 +93,20 @@ struct MenuBarControlView: View {
                             Text("Unavailable microphone").tag(model.selectedMicrophoneID)
                         }
                     }
+                    Picker("Resolution", selection: $model.captureResolution) {
+                        ForEach(CaptureResolution.allCases, id: \.self) { resolution in
+                            Text(resolution.label).tag(resolution)
+                        }
+                    }
+                    Picker("Video quality", selection: $model.captureQuality) {
+                        ForEach(CaptureQuality.allCases, id: \.self) { quality in
+                            Text(quality.label).tag(quality)
+                        }
+                    }
+                    Text("Resolution limits the longest edge. Quality controls motion smoothness.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .controlSize(.small)
                 .padding(.top, 6)

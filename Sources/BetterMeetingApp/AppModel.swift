@@ -71,6 +71,12 @@ final class AppModel: ObservableObject {
     @Published var selectedMicrophoneID: String {
         didSet { defaults.set(selectedMicrophoneID, forKey: "microphoneID") }
     }
+    @Published var captureResolution: CaptureResolution {
+        didSet { defaults.set(captureResolution.rawValue, forKey: "captureResolution") }
+    }
+    @Published var captureQuality: CaptureQuality {
+        didSet { defaults.set(captureQuality.rawValue, forKey: "captureQuality") }
+    }
 
     private let defaults: UserDefaults
     private let recorder = MeetingRecorder()
@@ -89,6 +95,8 @@ final class AppModel: ObservableObject {
             ?? documents.appendingPathComponent("Better Meetings", isDirectory: true)
         selectedDisplayID = CGDirectDisplayID(clamping: defaults.integer(forKey: "displayID"))
         selectedMicrophoneID = defaults.string(forKey: "microphoneID") ?? ""
+        captureResolution = CaptureResolution(rawValue: defaults.integer(forKey: "captureResolution")) ?? .pixels1440
+        captureQuality = CaptureQuality(rawValue: defaults.integer(forKey: "captureQuality")) ?? .standard
         recorder.onUnexpectedStop = { [weak self] error in
             self?.captureStoppedExternally(with: error)
         }
@@ -353,7 +361,10 @@ final class AppModel: ObservableObject {
 
                 activeFolder = folder
                 recordedAt = startedAt
-                try await recorder.start(to: recordingURL, displayID: selectedDisplayID, microphoneID: selectedMicrophoneID)
+                try await recorder.start(
+                    to: recordingURL, displayID: selectedDisplayID, microphoneID: selectedMicrophoneID,
+                    resolution: captureResolution, quality: captureQuality
+                )
                 state = .recording
                 statusText = "Recording the selected display, system audio, and microphone."
                 startTimer(from: startedAt)

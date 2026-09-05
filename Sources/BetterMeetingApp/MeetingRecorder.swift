@@ -33,7 +33,10 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
         guard microphoneAllowed else { throw RecorderError.microphonePermissionDenied }
     }
 
-    func start(to outputURL: URL, displayID: CGDirectDisplayID, microphoneID: String) async throws {
+    func start(
+        to outputURL: URL, displayID: CGDirectDisplayID, microphoneID: String,
+        resolution: CaptureResolution, quality: CaptureQuality
+    ) async throws {
         guard stream == nil else { throw RecorderError.alreadyRecording }
         guard CGPreflightScreenCaptureAccess() else { throw RecorderError.screenPermissionDenied }
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
@@ -63,11 +66,13 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
             exceptingWindows: []
         )
 
-        let configuration = SCStreamConfiguration()
-        let scale = min(1, 1440 / Double(display.width))
-        configuration.width = max(2, Int(Double(display.width) * scale))
-        configuration.height = max(2, Int(Double(display.height) * scale))
-        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 10)
+        let configuration = Self.videoConfiguration(
+            sourceSize: CGSize(
+                width: filter.contentRect.width * CGFloat(filter.pointPixelScale),
+                height: filter.contentRect.height * CGFloat(filter.pointPixelScale)
+            ),
+            resolution: resolution, quality: quality
+        )
         configuration.queueDepth = 3
         configuration.showsCursor = false
         configuration.capturesAudio = true
@@ -102,6 +107,19 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
                 }
             }
         }
+    }
+
+    static func videoConfiguration(
+        sourceSize: CGSize, resolution: CaptureResolution, quality: CaptureQuality
+    ) -> SCStreamConfiguration {
+        let configuration = SCStreamConfiguration()
+        let scale = min(1, CGFloat(resolution.rawValue) / max(sourceSize.width, sourceSize.height))
+        // H.264 needs even dimensions; keep the aspect ratio without upscaling.
+        configuration.width = max(2, Int(sourceSize.width * scale) / 2 * 2)
+        configuration.height = max(2, Int(sourceSize.height * scale) / 2 * 2)
+        configuration.minimumFrameInterval = CMTime(value: 1, timescale: Int32(quality.rawValue))
+        configuration.captureResolution = .best
+        return configuration
     }
 
     func stop() async throws {
@@ -199,6 +217,30 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
         stream = nil
         recordingOutput = nil
         Task { try? await previousStream?.stopCapture() }
+    }
+}
+
+enum CaptureResolution: Int, CaseIterable {
+    case pixels1280 = 1280
+    case pixels1440 = 1440
+    case pixels1920 = 1920
+    case pixels2560 = 2560
+
+    var label: String { "\(rawValue) px" }
+}
+
+enum CaptureQuality: Int, CaseIterable {
+    case compact = 5
+    case standard = 10
+    case smooth = 30
+
+    // ponytail: use frame rate presets; custom bitrate needs a different recording pipeline.
+    var label: String {
+        switch self {
+        case .compact: "Compact · 5 fps"
+        case .standard: "Standard · 10 fps"
+        case .smooth: "Smooth · 30 fps"
+        }
     }
 }
 
