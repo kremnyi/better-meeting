@@ -35,6 +35,7 @@ enum TranscriptionPasses {
         let model: String
         let backend: String
         let options: Data
+        var hints: String? = nil
         let audioSize: Int?
         let audioModified: Date?
         let segments: [ScoredSegment]
@@ -48,12 +49,13 @@ enum TranscriptionPasses {
     }
 
     static func run(
-        audioURL: URL, languages: [String],
+        audioURL: URL, languages: [String], hints: String = "",
         progressHandler: @Sendable (LocalTranscriptionProgress) -> Void,
         transcribe: (DecodingOptions, Int) async throws -> [ScoredSegment]
     ) async throws -> [TranscriptSegment] {
         // URL resource values can be stale when an existing audio file is replaced.
         let attributes = try FileManager.default.attributesOfItem(atPath: audioURL.path)
+        let hints = hints.trimmingCharacters(in: .whitespacesAndNewlines)
         let audioSize = (attributes[.size] as? NSNumber)?.intValue
         let audioModified = attributes[.modificationDate] as? Date
         let encoder = JSONEncoder()
@@ -68,6 +70,7 @@ enum TranscriptionPasses {
             let pass: [ScoredSegment]
             if let cache, cache.model == LocalTranscriber.modelVariant,
                cache.backend == backend, cache.options == encodedOptions,
+               (cache.hints ?? "") == hints,
                cache.audioSize == audioSize, cache.audioModified == audioModified {
                 pass = cache.segments
             } else {
@@ -75,7 +78,7 @@ enum TranscriptionPasses {
                 try Task.checkCancellation()
                 let cache = Cache(
                     model: LocalTranscriber.modelVariant, backend: backend,
-                    options: encodedOptions, audioSize: audioSize,
+                    options: encodedOptions, hints: hints.isEmpty ? nil : hints, audioSize: audioSize,
                     audioModified: audioModified, segments: pass
                 )
                 try encoder.encode(cache).write(to: cacheURL, options: .atomic)

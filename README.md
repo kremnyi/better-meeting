@@ -64,6 +64,10 @@ separately, then merges segments by confidence and filters likely silence
 hallucinations. Choose one language for a single pass. The app remembers your choice.
 Three languages require three passes; progress shows the current language and pass.
 
+Use **Vocabulary** in Options for names, companies, and technical terms separated
+by commas. These optional hints use Whisper's existing prompt support and stay on
+your Mac. The app remembers them; changing hints reruns the affected language passes.
+
 The menu shows the 10 most recent completed meetings. If transcription fails,
 use **Retry transcription** or **Finish saved recording** to resume from saved
 audio or video, including after a restart. Quit waits for an active recording

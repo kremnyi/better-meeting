@@ -146,7 +146,25 @@ final class TranscriptionPassTests: XCTestCase {
         let model = AppModel(defaults: defaults)
         XCTAssertEqual(model.transcriptionLanguage.languages, ["uk", "ru", "en"])
         model.transcriptionLanguage = .uk
+        model.transcriptionHints = "Anna, Approck, WhisperKit"
         XCTAssertEqual(AppModel(defaults: defaults).transcriptionLanguage.languages, ["uk"])
+        XCTAssertEqual(AppModel(defaults: defaults).transcriptionHints, "Anna, Approck, WhisperKit")
+    }
+
+    func testVocabularyChangesInvalidatePassCache() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let audio = root.appendingPathComponent("audio.m4a")
+        try Data([1]).write(to: audio)
+        for (hints, shouldRun) in [("", true), ("Anna, Approck", true), (" Anna, Approck ", false), ("", true)] {
+            var ran = false
+            _ = try await TranscriptionPasses.run(audioURL: audio, languages: ["uk"], hints: hints, progressHandler: { _ in }) { _, _ in
+                ran = true
+                return []
+            }
+            XCTAssertEqual(ran, shouldRun)
+        }
     }
 
     func testRealMultilingualRecording() async throws {

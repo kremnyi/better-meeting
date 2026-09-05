@@ -77,6 +77,7 @@ actor LocalTranscriber {
     func transcribe(
         audioURL: URL,
         languages: [String] = ["uk", "ru", "en"],
+        hints: String = "",
         progressHandler: @escaping @Sendable (LocalTranscriptionProgress) -> Void
     ) async throws -> [TranscriptSegment] {
         let audioFile = try AVAudioFile(
@@ -87,9 +88,16 @@ actor LocalTranscriber {
         let duration = Double(audioFile.length) / audioFile.fileFormat.sampleRate
 
         return try await TranscriptionPasses.run(
-            audioURL: audioURL, languages: languages, progressHandler: progressHandler
+            audioURL: audioURL, languages: languages, hints: hints, progressHandler: progressHandler
         ) { options, index in
             let whisper = try await self.prepare(progressHandler: progressHandler)
+            var options = options
+            let hints = hints.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !hints.isEmpty {
+                guard let tokenizer = whisper.tokenizer else { throw WhisperError.tokenizerUnavailable() }
+                // Cache the text alongside decoding options; tokenize only on a cache miss.
+                options.promptTokens = tokenizer.encode(text: " " + hints)
+            }
             let language = languages[index]
             let report: @Sendable (Double) -> Void = { fraction in
                 progressHandler(.transcribing(

@@ -81,6 +81,9 @@ final class AppModel: ObservableObject {
     @Published var transcriptionLanguage: TranscriptionLanguage {
         didSet { defaults.set(transcriptionLanguage.rawValue, forKey: "transcriptionLanguage") }
     }
+    @Published var transcriptionHints: String {
+        didSet { defaults.set(transcriptionHints, forKey: "transcriptionHints") }
+    }
 
     private let defaults: UserDefaults
     private let recorder = MeetingRecorder()
@@ -103,6 +106,7 @@ final class AppModel: ObservableObject {
         captureResolution = CaptureResolution(rawValue: defaults.integer(forKey: "captureResolution")) ?? .pixels1440
         captureQuality = CaptureQuality(rawValue: defaults.integer(forKey: "captureQuality")) ?? .standard
         transcriptionLanguage = TranscriptionLanguage(rawValue: defaults.string(forKey: "transcriptionLanguage") ?? "") ?? .auto
+        transcriptionHints = defaults.string(forKey: "transcriptionHints") ?? ""
         recorder.onUnexpectedStop = { [weak self] error in
             self?.captureStoppedExternally(with: error)
         }
@@ -486,7 +490,7 @@ final class AppModel: ObservableObject {
             )
 
             let segments = try await transcriber.transcribe(
-                audioURL: audioURL, languages: transcriptionLanguage.languages
+                audioURL: audioURL, languages: transcriptionLanguage.languages, hints: transcriptionHints
             ) { [weak self] progress in
                 Task { @MainActor [weak self] in
                     self?.updateTranscriptionProgress(progress)

@@ -169,6 +169,12 @@ struct MenuBarControlView: View {
                 .help("Auto transcribes Ukrainian, Russian, and English separately, then merges by confidence")
             }
             GridRow {
+                Text("Vocabulary")
+                TextField("Names and terms (optional)", text: $model.transcriptionHints)
+                    .textFieldStyle(.roundedBorder)
+                    .help("Comma-separated names, companies, or technical terms to help Whisper recognize them")
+            }
+            GridRow {
                 Text("Save to")
                 destinationButton
             }
