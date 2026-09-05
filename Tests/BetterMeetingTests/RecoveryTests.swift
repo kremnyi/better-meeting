@@ -82,6 +82,12 @@ final class RecoveryTests: XCTestCase {
         }
         let audioURL = root.appendingPathComponent("audio.m4a")
         try Data("previous audio".utf8).write(to: audioURL)
+        let cancelled = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await AudioExtractor.extract(from: sourceURL, to: audioURL) { _ in }
+        }
+        if case .success = await cancelled.result { XCTFail("Cancelled export must not replace saved audio") }
+        XCTAssertEqual(try Data(contentsOf: audioURL), Data("previous audio".utf8))
         try await AudioExtractor.extract(from: sourceURL, to: audioURL) { _ in }
         XCTAssertGreaterThan(try AVAudioFile(forReading: audioURL).length, 0)
         XCTAssertTrue(FileManager.default.fileExists(atPath: sourceURL.path))

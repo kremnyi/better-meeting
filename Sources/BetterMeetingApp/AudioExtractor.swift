@@ -31,11 +31,7 @@ enum AudioExtractor {
                 }
             }
             defer { group.cancelAll() }
-            try await withTaskCancellationHandler {
-                try await exporter.export(to: temporaryURL, as: .m4a)
-            } onCancel: {
-                exporter.cancelExport()
-            }
+            try await exporter.export(to: temporaryURL, as: .m4a)
         }
 
         try Task.checkCancellation()
