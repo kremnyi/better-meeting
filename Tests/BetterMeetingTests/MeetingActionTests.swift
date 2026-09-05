@@ -1,4 +1,5 @@
 import AppKit
+import UserNotifications
 import XCTest
 @testable import BetterMeetingApp
 
@@ -31,6 +32,23 @@ final class MeetingActionTests: XCTestCase {
         XCTAssertEqual(updated["title"] as? String, "Pricing Review")
         XCTAssertEqual(updated["titleWasProvided"] as? Bool, true)
         XCTAssertEqual(updated["customField"] as? String, "Keep this")
+    }
+
+    func testNotificationFollowsRenamedFolder() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let date = Date()
+        let folder = try MeetingArtifacts.createDirectory(in: root, title: "Original", recordedAt: date)
+        let notification = try MeetingNotifications.content(title: "Original", folder: folder, failed: false)
+        let renamed = try MeetingArtifacts.renameDirectory(folder, title: "New name", recordedAt: date)
+        XCTAssertEqual(notification.title, "Transcript ready")
+        XCTAssertEqual(notification.body, "Original")
+        XCTAssertEqual(MeetingNotifications.folder(from: notification)?.resolvingSymlinksInPath().path,
+                       renamed.resolvingSymlinksInPath().path)
+        let failure = try MeetingNotifications.content(title: "", folder: renamed, failed: true)
+        XCTAssertEqual(failure.title, "Transcription needs attention")
+        XCTAssertEqual(failure.body, renamed.lastPathComponent)
+        XCTAssertNil(MeetingNotifications.folder(from: UNMutableNotificationContent()))
     }
 
     func testFailedRenameRestoresOriginalFiles() throws {

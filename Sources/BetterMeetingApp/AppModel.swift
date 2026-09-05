@@ -228,7 +228,10 @@ final class AppModel: ObservableObject {
         privacyPermission = nil
         state = .processing
         setProcessingPhase(.preparingAudio)
-        Task { await finishRecording(stopCapture: false) }
+        Task {
+            await MeetingNotifications.requestPermission()
+            await finishRecording(stopCapture: false)
+        }
     }
 
     func dismissFailure() {
@@ -376,6 +379,7 @@ final class AppModel: ObservableObject {
         Task {
             do {
                 try await recorder.requestPermissions()
+                await MeetingNotifications.requestPermission()
 
                 let startedAt = Date()
                 let folder = try MeetingArtifacts.createDirectory(
@@ -487,6 +491,10 @@ final class AppModel: ObservableObject {
             completedFolder = folder
             modelReady = true
             refreshHistory()
+            await MeetingNotifications.post(
+                title: transcriptionHistory.first(where: { $0.folderURL == folder })?.title ?? folder.lastPathComponent,
+                folder: folder, failed: false
+            )
             elapsed = 0
             state = .idle
             statusText = "Ready to record your display and audio."
@@ -503,6 +511,9 @@ final class AppModel: ObservableObject {
                 completedFolder = activeFolder
             }
             fail(error)
+            if let activeFolder {
+                await MeetingNotifications.post(title: meetingTitle, folder: activeFolder, failed: true)
+            }
         }
     }
 

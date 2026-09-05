@@ -68,6 +68,11 @@ Right-click a completed meeting to **Copy Transcript** or **Rename…**. Copy us
 the saved Markdown, including any edits. Rename updates the folder, title, and
 metadata while keeping the transcript body and media files.
 
+Before your first recording or retry, the app asks permission to send completion
+notifications. Allow them to see when transcription finishes or needs attention;
+clicking a notification opens that meeting's folder. You can change this in
+macOS **System Settings → Notifications → Better Meeting**.
+
 ## Meeting files and titles
 
 ```text
