@@ -3,25 +3,10 @@ import SwiftUI
 
 enum BrandAssets {
     static let menuBarIcon: NSImage = {
-        let pointSize = NSSize(width: 18, height: 18)
-        let image = NSImage(size: pointSize)
-
-        for filename in ["MenuBarIconTemplate.png", "MenuBarIconTemplate@2x.png"] {
-            guard
-                let url = Bundle.main.resourceURL?.appendingPathComponent(filename),
-                let source = NSImage(contentsOf: url)
-            else { continue }
-
-            for representation in source.representations {
-                representation.size = pointSize
-                image.addRepresentation(representation)
-            }
-        }
-
-        guard !image.representations.isEmpty else {
+        guard let image = NSImage(named: "MenuBarIconTemplate") else {
             return NSImage(systemSymbolName: "waveform", accessibilityDescription: nil)!
         }
-
+        image.size = NSSize(width: 18, height: 18)
         image.isTemplate = true
         return image
     }()
