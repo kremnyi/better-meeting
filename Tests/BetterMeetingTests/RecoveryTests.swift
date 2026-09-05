@@ -148,7 +148,7 @@ final class RecoveryTests: XCTestCase {
     }
 
     @MainActor
-    func testCaptureOptionsDoesNotResizeMenu() throws {
+    func testPopoversDoNotResizeMenu() throws {
         let suite = "BetterMeetingLayout.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defaults.set(FileManager.default.temporaryDirectory.appendingPathComponent(suite), forKey: "outputFolder")
@@ -157,8 +157,10 @@ final class RecoveryTests: XCTestCase {
         let model = AppModel(defaults: defaults)
         let closed = NSHostingView(rootView: MenuBarControlView().environmentObject(model))
         let presented = NSHostingView(rootView: MenuBarControlView(captureOptionsPresented: true).environmentObject(model))
+        let about = NSHostingView(rootView: MenuBarControlView(aboutPresented: true).environmentObject(model))
         XCTAssertGreaterThan(closed.fittingSize.height, 0)
         XCTAssertEqual(presented.fittingSize, closed.fittingSize)
+        XCTAssertEqual(about.fittingSize, closed.fittingSize)
     }
 
     @MainActor

@@ -27,7 +27,14 @@ macOS blocks the first launch, try opening the app, then use **System Settings
 → Privacy & Security → Open Anyway**. See [Apple's instructions](https://support.apple.com/102445).
 Managed Macs may not allow this exception.
 
-To update, finish any active recording, quit the app, and run:
+Open **About** in the menu footer to see the installed version and release page.
+**Check for Updates** contacts GitHub when clicked and reports whether a newer
+release is available. For apps installed with Homebrew at `/opt/homebrew`,
+**Update with Homebrew** opens Terminal, quits the app, and reopens it after a
+successful update. Finish any recording or transcription first. ZIP installations
+use the release-page download.
+
+To update with Homebrew, finish any active recording, quit the app, and run:
 
 ```bash
 brew update

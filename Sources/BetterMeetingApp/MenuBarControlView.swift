@@ -4,6 +4,7 @@ import SwiftUI
 struct MenuBarControlView: View {
     @EnvironmentObject private var model: AppModel
     @State var captureOptionsPresented = false
+    @State var aboutPresented = false
     @State private var retranscribingMeeting: MeetingHistoryItem?
 
     var body: some View {
@@ -33,6 +34,14 @@ struct MenuBarControlView: View {
                 }
 
                 Spacer()
+
+                Button("About") {
+                    aboutPresented.toggle()
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $aboutPresented, arrowEdge: .top) {
+                    AboutView()
+                }
 
                 Button("Quit") {
                     NSApp.terminate(nil)
