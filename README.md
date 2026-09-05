@@ -64,6 +64,10 @@ audio or video, including after a restart. Quit waits for an active recording
 and its transcript to finish saving. Force Quit or power loss can leave an
 unfinished video that cannot be recovered.
 
+Right-click a completed meeting to **Copy Transcript** or **Rename…**. Copy uses
+the saved Markdown, including any edits. Rename updates the folder, title, and
+metadata while keeping the transcript body and media files.
+
 ## Meeting files and titles
 
 ```text

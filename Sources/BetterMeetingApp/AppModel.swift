@@ -301,6 +301,32 @@ final class AppModel: ObservableObject {
         unfinishedRecordings = meetings.filter(\.needsTranscription)
     }
 
+    func copyTranscript(_ meeting: MeetingHistoryItem, to pasteboard: NSPasteboard = .general) throws {
+        let text = try String(contentsOf: meeting.folderURL.appendingPathComponent("transcript.md"), encoding: .utf8)
+        pasteboard.clearContents()
+        guard pasteboard.setString(text, forType: .string) else { throw MeetingActionError.clipboardUnavailable }
+    }
+
+    func renameMeeting(_ meeting: MeetingHistoryItem) {
+        let alert = NSAlert()
+        alert.messageText = "Rename meeting"
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        let nameField = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        nameField.stringValue = meeting.title
+        nameField.setAccessibilityLabel("Meeting name")
+        alert.accessoryView = nameField
+        alert.window.initialFirstResponder = nameField
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            let folder = try MeetingArtifacts.renameMeeting(meeting, to: nameField.stringValue)
+            if completedFolder == meeting.folderURL { completedFolder = folder }
+        } catch {
+            NSAlert(error: error).runModal()
+        }
+        refreshHistory()
+    }
+
     func openMeetingsFolder() {
         if !FileManager.default.fileExists(atPath: outputRoot.path) {
             try? FileManager.default.createDirectory(

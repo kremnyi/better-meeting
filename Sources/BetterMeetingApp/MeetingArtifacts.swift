@@ -56,6 +56,36 @@ enum MeetingArtifacts {
         return destination
     }
 
+    static func renameMeeting(_ meeting: MeetingHistoryItem, to title: String) throws -> URL {
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw MeetingActionError.emptyTitle
+        }
+        let title = sanitizedTitle(title)
+        let markdownURL = meeting.folderURL.appendingPathComponent("transcript.md")
+        let metadataURL = meeting.folderURL.appendingPathComponent("metadata.json")
+        let originalMarkdown = try Data(contentsOf: markdownURL)
+        let originalMetadata = try Data(contentsOf: metadataURL)
+        guard let markdown = String(data: originalMarkdown, encoding: .utf8),
+              var metadata = try JSONSerialization.jsonObject(with: originalMetadata) as? [String: Any] else {
+            throw MeetingActionError.invalidMeeting
+        }
+        let updatedMarkdown = markdown.hasPrefix("# ")
+            ? "# \(title)" + markdown.drop(while: { !$0.isNewline })
+            : "# \(title)\n\n" + markdown
+        metadata["title"] = title
+        metadata["titleWasProvided"] = true
+        let updatedMetadata = try JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys])
+        do {
+            try updatedMarkdown.write(to: markdownURL, atomically: true, encoding: .utf8)
+            try updatedMetadata.write(to: metadataURL, options: .atomic)
+            return try renameDirectory(meeting.folderURL, title: title, recordedAt: meeting.recordedAt)
+        } catch {
+            try originalMarkdown.write(to: markdownURL, options: .atomic)
+            try originalMetadata.write(to: metadataURL, options: .atomic)
+            throw error
+        }
+    }
+
     private static func availableDirectory(in root: URL, named baseName: String, current: URL? = nil) -> URL {
         var candidate = root.appendingPathComponent(baseName, isDirectory: true)
         var suffix = 2
@@ -243,6 +273,20 @@ enum MeetingArtifacts {
         formatter.timeStyle = .short
         return formatter
     }()
+}
+
+enum MeetingActionError: LocalizedError {
+    case emptyTitle
+    case invalidMeeting
+    case clipboardUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyTitle: "Enter a meeting name."
+        case .invalidMeeting: "The meeting's transcript or metadata could not be read."
+        case .clipboardUnavailable: "The transcript could not be copied to the clipboard."
+        }
+    }
 }
 
 enum Timecode {
