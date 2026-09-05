@@ -39,8 +39,8 @@ signatures change with new builds. Uninstalling the app keeps saved meetings.
 
 ## Record a meeting
 
-1. Open the app. It downloads and prepares the multilingual Whisper `large-v3-turbo`
-   model automatically in the background. The menu shows progress; you can start
+1. Open the app. If needed, it downloads and prepares the multilingual Whisper
+   `large-v3-turbo` model in the background. The menu shows progress; you can start
    recording during setup. Transcription waits until the model is ready. If setup
    fails, use **Retry setup**.
 2. Enter a meeting name or leave it empty for automatic naming.

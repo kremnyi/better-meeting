@@ -71,10 +71,14 @@ GitHub release; no separate repository or signing certificate is needed.
    ad-hoc-signed ZIP and `.sha256` file in `dist/`.
 3. Set the cask's `version` and `sha256` to match that archive. Run
    `ruby -c Casks/better-meeting.rb` and commit the release changes together.
-4. Tag that commit as `v<version>` and push the commit and tag. Create the
-   matching GitHub release and attach the ZIP and checksum from step 2.
-5. Test the [Homebrew install commands](README.md#install-with-homebrew) against
-   the public release.
+4. Tag that commit as `v<version>` and push the tag. Wait for GitHub Actions
+   to pass the tests and app-bundle build.
+5. Publish the matching GitHub release with the ZIP and checksum from step 2,
+   then push the commit to `main`. The download must be available before the
+   updated cask reaches Homebrew.
+6. Run `brew update`, then
+   `brew fetch --cask kremnyi/better-meeting/better-meeting` to verify the public
+   download and its checksum.
 
 Keep the exact archive used for the checksum; rebuilding can change it. Never
 replace a published version's archive. Publish a new version instead.
