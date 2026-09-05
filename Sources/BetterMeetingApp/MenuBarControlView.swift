@@ -117,12 +117,12 @@ struct MenuBarControlView: View {
 
             modelSetupStatus
 
-            if let message = model.bundleMessage {
+            if let message = model.completionMessage {
                 HStack(alignment: .top) {
                     Text(message).font(.callout).fixedSize(horizontal: false, vertical: true)
-                    Button { model.bundleMessage = nil } label: { Image(systemName: "xmark") }
+                    Button { model.completionMessage = nil } label: { Image(systemName: "xmark") }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Dismiss export status")
+                        .accessibilityLabel("Dismiss status")
                 }
             }
 

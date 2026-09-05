@@ -106,7 +106,7 @@ final class AppModel: ObservableObject {
         didSet { defaults.set(candidateLanguages, forKey: "candidateLanguages") }
     }
 
-    @Published var bundleMessage: String?
+    @Published var completionMessage: String?
     @Published var exportAfterRecording: Bool {
         didSet { defaults.set(exportAfterRecording, forKey: "exportAfterRecording") }
     }
@@ -301,7 +301,7 @@ final class AppModel: ObservableObject {
 
     func retryTranscription(_ item: MeetingHistoryItem, languages: [String]? = nil, hints: String? = nil, settings: SpeechSettings? = nil) {
         guard state == .idle || state == .failed else { return }
-        bundleMessage = nil
+        completionMessage = nil
         activeFolder = item.folderURL
         completedFolder = nil
         recordedAt = item.recordedAt
@@ -342,7 +342,7 @@ final class AppModel: ObservableObject {
         guard state == .idle else { return }
         state = .processing
         elapsed = meeting.duration
-        bundleMessage = nil
+        completionMessage = nil
         errorMessage = nil
         setProcessingPhase(.extractingScreens, fraction: 0)
         processingTask = Task {
@@ -350,11 +350,11 @@ final class AppModel: ObservableObject {
             do {
                 let destination = try await createBundle(for: meeting)
                 completedFolder = meeting.folderURL
-                bundleMessage = "Export bundle saved in the meeting folder."
+                completionMessage = "Export bundle saved in the meeting folder."
                 NSWorkspace.shared.open(destination)
                 succeeded = true
             } catch {
-                bundleMessage = Task.isCancelled
+                completionMessage = Task.isCancelled
                     ? "Export cancelled. Existing meeting files and bundle are kept."
                     : "Export failed: \(error.localizedDescription)"
             }
@@ -556,7 +556,7 @@ final class AppModel: ObservableObject {
         activeFolder = nil
         recordedAt = nil
 
-        bundleMessage = nil
+        completionMessage = nil
         let title = meetingTitle
         titleWasProvided = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         Task {
@@ -711,9 +711,9 @@ final class AppModel: ObservableObject {
             if exportAfterRecording, let meeting = completedMeetings.first(where: { $0.folderURL == folder }) {
                 do {
                     _ = try await createBundle(for: meeting)
-                    bundleMessage = "Export bundle saved in the meeting folder."
+                    completionMessage = "Export bundle saved in the meeting folder."
                 } catch {
-                    bundleMessage = Task.isCancelled
+                    completionMessage = Task.isCancelled
                         ? "Transcript saved. Export cancelled; any previous bundle is kept."
                         : "Transcript saved. Export failed: \(error.localizedDescription)"
                 }
@@ -739,7 +739,9 @@ final class AppModel: ObservableObject {
             }
             if Task.isCancelled {
                 state = .idle
-                statusText = "Transcription cancelled. Saved audio and completed passes are kept."
+                completionMessage = replacing == nil
+                    ? "Transcription cancelled. Recording kept; resume with Finish saved recording."
+                    : "Re-transcription cancelled. Your existing transcript is unchanged."
                 processingPhase = nil
                 processingFraction = nil
                 activeFolder = nil

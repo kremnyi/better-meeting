@@ -28,9 +28,11 @@ final class MeetingActionTests: XCTestCase {
         await model.processingTask?.value
         XCTAssertEqual(model.state, .idle)
         XCTAssertFalse(model.canCancelTranscription)
+        XCTAssertEqual(model.completionMessage, "Re-transcription cancelled. Your existing transcript is unchanged.")
         XCTAssertEqual(try names.map { try Data(contentsOf: folder.appendingPathComponent($0)) }, original)
         // Missing source media must fail without marking the saved transcript unfinished.
         model.retryTranscription(item)
+        XCTAssertNil(model.completionMessage, "A new attempt must clear the cancellation notice")
         await model.processingTask?.value
         XCTAssertEqual(model.state, .failed)
         XCTAssertEqual(model.primaryButtonTitle, "Retry transcription")
