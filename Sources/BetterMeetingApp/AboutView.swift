@@ -4,7 +4,7 @@ struct AboutView: View {
     @EnvironmentObject private var model: AppModel
     var version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     var homebrewAvailable = HomebrewUpdate.isAvailable
-    @State var status: ReleaseCheck.Status = .unchecked
+    private var status: ReleaseCheck.Status { model.releaseStatus }
     @State private var updating = false
     @State private var updateError: String?
 
@@ -49,6 +49,10 @@ struct AboutView: View {
                 }
             }
 
+            Toggle("Check for updates on launch", isOn: $model.checkUpdatesOnLaunch)
+                .toggleStyle(.checkbox)
+                .help("Checks GitHub when Better Meeting opens. Updates are installed only when you choose.")
+
             Link("Release notes", destination: ReleaseCheck.releaseURL)
         }
         .font(.callout)
@@ -59,24 +63,8 @@ struct AboutView: View {
 
     @MainActor
     private func checkForUpdates() async {
-        guard status != .checking, let version else { return }
-        status = .checking
         updateError = nil
-
-        do {
-            var request = URLRequest(
-                url: URL(string: "https://api.github.com/repos/kremnyi/better-meeting/releases/latest")!,
-                cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15
-            )
-            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-            let (data, response) = try await URLSession.shared.data(for: request)
-            status = try ReleaseCheck.status(
-                from: data, statusCode: (response as? HTTPURLResponse)?.statusCode,
-                installedVersion: version
-            )
-        } catch {
-            status = .failed
-        }
+        await model.checkForUpdates(installedVersion: version)
     }
 
     @MainActor
@@ -108,7 +96,7 @@ enum ReleaseCheck {
 
         var message: String {
             switch self {
-            case .unchecked: "Updates are checked on request."
+            case .unchecked: "Update checks contact GitHub."
             case .checking: "Checking GitHub for a newer release…"
             case .current: "You're up to date."
             case .available(let version): "Version \(version) is available."
@@ -118,6 +106,19 @@ enum ReleaseCheck {
     }
 
     static let releaseURL = URL(string: "https://github.com/kremnyi/better-meeting/releases/latest")!
+
+    static func latest(installedVersion: String) async throws -> Status {
+        var request = URLRequest(
+            url: URL(string: "https://api.github.com/repos/kremnyi/better-meeting/releases/latest")!,
+            cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15
+        )
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        return try status(
+            from: data, statusCode: (response as? HTTPURLResponse)?.statusCode,
+            installedVersion: installedVersion
+        )
+    }
 
     static func status(from data: Data, statusCode: Int?, installedVersion: String) throws -> Status {
         struct Release: Decodable {

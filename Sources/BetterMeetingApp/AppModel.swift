@@ -107,6 +107,10 @@ final class AppModel: ObservableObject {
     }
 
     @Published var completionMessage: String?
+    @Published var releaseStatus: ReleaseCheck.Status = .unchecked
+    @Published var checkUpdatesOnLaunch: Bool {
+        didSet { defaults.set(checkUpdatesOnLaunch, forKey: "checkUpdatesOnLaunch") }
+    }
     @Published var exportAfterRecording: Bool {
         didSet { defaults.set(exportAfterRecording, forKey: "exportAfterRecording") }
     }
@@ -153,6 +157,7 @@ final class AppModel: ObservableObject {
         transcriptionHints = defaults.string(forKey: "transcriptionHints") ?? ""
         candidateLanguages = TranscriptionLanguage.candidates(from: defaults.stringArray(forKey: "candidateLanguages") ?? [])
         exportAfterRecording = defaults.bool(forKey: "exportAfterRecording")
+        checkUpdatesOnLaunch = defaults.bool(forKey: "checkUpdatesOnLaunch")
         speechSettings = defaults.data(forKey: "speechSettings")
             .flatMap { try? JSONDecoder().decode(SpeechSettings.self, from: $0) } ?? SpeechSettings()
         if (try? speechSettings.validate()) == nil { speechSettings = SpeechSettings() }
@@ -161,6 +166,23 @@ final class AppModel: ObservableObject {
             self?.captureStoppedExternally(with: error)
         }
         refreshHistory()
+    }
+
+    func checkForUpdates(
+        automatically: Bool = false,
+        installedVersion: String? = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+        fetch: (String) async throws -> ReleaseCheck.Status = ReleaseCheck.latest
+    ) async {
+        guard !automatically || checkUpdatesOnLaunch,
+              releaseStatus != .checking, let installedVersion else { return }
+        let previous = releaseStatus
+        releaseStatus = .checking
+        do {
+            let result = try await fetch(installedVersion)
+            releaseStatus = automatically && !checkUpdatesOnLaunch ? previous : result
+        } catch {
+            releaseStatus = automatically ? previous : .failed
+        }
     }
 
     var elapsedText: String {

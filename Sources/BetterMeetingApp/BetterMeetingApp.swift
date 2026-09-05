@@ -22,6 +22,11 @@ struct BetterMeetingApp: App {
             MenuBarStatusIcon(state: model.state, processingFrame: processingFrame)
         }
         .menuBarExtraStyle(.window)
+        .onChange(of: model.checkUpdatesOnLaunch, initial: true) { _, enabled in
+            if enabled {
+                Task { await model.checkForUpdates(automatically: true) }
+            }
+        }
         .onChange(of: model.state == .processing && !reduceMotion, initial: true) { _, animate in
             iconTimer?.invalidate()
             iconTimer = nil

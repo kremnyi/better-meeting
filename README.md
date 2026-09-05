@@ -30,7 +30,13 @@ Managed Macs may not allow this exception.
 Click the **ⓘ** button in the top-right corner to open **About**, with the installed
 version and release notes.
 **Check for Updates** contacts GitHub when clicked and reports whether a newer
-release is available. When one is found, **Update to [version]** appears for apps
+release is available. Enable **Check for updates on launch** in About to check once
+each time the app opens. This is off by default; enabling it also checks immediately.
+A newer release adds an **Update available** row to the main menu. Click it to
+review the update in About. Startup checks stay quiet if no update is found or
+GitHub cannot be reached. The app never installs an update automatically.
+
+When a newer release is found, **Update to [version]** appears for apps
 installed with Homebrew at `/opt/homebrew`. It opens Terminal, quits the app,
 and reopens it after a successful update. Finish any recording, transcription,
 or export first. ZIP installations get a **Download [version]** link instead.
@@ -209,7 +215,7 @@ menu without marking the saved transcript as failed.
 ## Privacy and model storage
 
 Recording, transcription, screenshots, OCR, and automatic naming run on your Mac. The app does not
-upload meetings. The first speech-model setup downloads files from Hugging Face;
+upload meetings. Update checks contact GitHub. The first speech-model setup downloads files from Hugging Face;
 after successful setup, transcription works offline. Removing or damaging those
 files can require another download.
 

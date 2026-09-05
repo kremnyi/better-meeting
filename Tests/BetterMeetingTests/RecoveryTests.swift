@@ -231,21 +231,22 @@ final class RecoveryTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         _ = NSApplication.shared
         let model = AppModel(defaults: defaults)
-        var panels: [(String, AnyView, CGFloat)] = [
-            ("options", AnyView(CaptureOptionsView()), 360),
-            ("advanced", AnyView(CaptureOptionsView(decodingPresented: true)), 360)
+        var panels: [(String, AnyView, CGFloat, ReleaseCheck.Status)] = [
+            ("options", AnyView(CaptureOptionsView()), 360, .unchecked),
+            ("advanced", AnyView(CaptureOptionsView(decodingPresented: true)), 360, .unchecked)
         ]
         for (name, status): (String, ReleaseCheck.Status) in [
             ("unchecked", .unchecked), ("checking", .checking), ("current", .current),
             ("available", .available("0.3.9")), ("failed", .failed)
         ] {
-            panels.append(("about-\(name)", AnyView(AboutView(version: "0.3.8", homebrewAvailable: true, status: status)), 304))
+            panels.append(("about-\(name)", AnyView(AboutView(version: "0.3.8", homebrewAvailable: true)), 304, status))
         }
         panels.append(("about-download", AnyView(AboutView(
-            version: "0.3.8", homebrewAvailable: false, status: .available("0.3.9")
-        )), 304))
+            version: "0.3.8", homebrewAvailable: false
+        )), 304, .available("0.3.9")))
         var aboutHeight: CGFloat?
-        for (name, content, width) in panels {
+        for (name, content, width, status) in panels {
+            model.releaseStatus = status
             let view = NSHostingView(rootView: content.environmentObject(model)
                 .environment(\.colorScheme, .light)
                 .background(Color(nsColor: .windowBackgroundColor)))
@@ -352,6 +353,14 @@ final class RecoveryTests: XCTestCase {
             .environment(\.colorScheme, .light)
             .background(Color(nsColor: .windowBackgroundColor)))
         try writePreview(view, to: URL(fileURLWithPath: path))
+        if let panels = ProcessInfo.processInfo.environment["BETTER_MEETING_PANELS_PREVIEW_PATH"] {
+            let initialSize = view.fittingSize
+            model.releaseStatus = .available("0.3.12")
+            let updated = NSHostingView(rootView: view.rootView)
+            XCTAssertEqual(updated.fittingSize.width, initialSize.width)
+            XCTAssertGreaterThan(updated.fittingSize.height, initialSize.height, "A confirmed update must add its notice")
+            try writePreview(updated, to: URL(fileURLWithPath: panels).appendingPathComponent("menu-update.png"))
+        }
     }
 
     @MainActor

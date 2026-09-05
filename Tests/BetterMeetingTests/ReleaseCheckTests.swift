@@ -3,6 +3,53 @@ import XCTest
 @testable import BetterMeetingApp
 
 final class ReleaseCheckTests: XCTestCase {
+    @MainActor
+    func testLaunchChecksPersistOptInShareResultsAndFailQuietly() async throws {
+        let suite = "BetterMeetingUpdateCheck.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.set(FileManager.default.temporaryDirectory.appendingPathComponent(suite), forKey: "outputFolder")
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = AppModel(defaults: defaults)
+        XCTAssertFalse(model.checkUpdatesOnLaunch)
+        await model.checkForUpdates(automatically: true, installedVersion: "0.3.10") { _ in
+            XCTFail("Launch checks must not contact GitHub without opting in")
+            return .current
+        }
+        XCTAssertEqual(model.releaseStatus, .unchecked)
+
+        model.checkUpdatesOnLaunch = true
+        XCTAssertTrue(AppModel(defaults: defaults).checkUpdatesOnLaunch)
+        await model.checkForUpdates(automatically: true, installedVersion: "0.3.10") { version in
+            XCTAssertEqual(version, "0.3.10")
+            XCTAssertEqual(model.releaseStatus, .checking)
+            await model.checkForUpdates(installedVersion: version) { _ in
+                XCTFail("Manual checks must reuse an in-flight launch check")
+                return .current
+            }
+            return .available("0.3.11")
+        }
+        XCTAssertEqual(model.releaseStatus.availableVersion, "0.3.11")
+        await model.checkForUpdates(automatically: true, installedVersion: "0.3.10") { _ in
+            throw URLError(.notConnectedToInternet)
+        }
+        XCTAssertEqual(model.releaseStatus, .available("0.3.11"), "A failed launch check must preserve a known update")
+
+        model.releaseStatus = .unchecked
+        await model.checkForUpdates(automatically: true, installedVersion: "0.3.10") { _ in
+            throw URLError(.notConnectedToInternet)
+        }
+        XCTAssertEqual(model.releaseStatus, .unchecked, "Automatic failures must not show an error notice")
+        await model.checkForUpdates(automatically: true, installedVersion: "0.3.10") { _ in
+            model.checkUpdatesOnLaunch = false
+            return .available("0.3.11")
+        }
+        XCTAssertEqual(model.releaseStatus, .unchecked, "Turning off checks must discard a pending automatic result")
+        XCTAssertFalse(AppModel(defaults: defaults).checkUpdatesOnLaunch)
+        await model.checkForUpdates(installedVersion: "0.3.10") { _ in throw URLError(.timedOut) }
+        XCTAssertEqual(model.releaseStatus, .failed, "Manual checks must still explain failures when launch checks are off")
+        XCTAssertEqual(model.state, .idle, "Update checks must not block recording")
+    }
+
     func testStableReleasesVersionsAndInvalidResponses() throws {
         func response(_ tag: String, draft: Bool = false, prerelease: Bool = false) throws -> Data {
             try JSONSerialization.data(withJSONObject: ["tag_name": tag, "draft": draft, "prerelease": prerelease])

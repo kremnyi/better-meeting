@@ -13,6 +13,28 @@ struct MenuBarControlView: View {
 
             Divider()
 
+            if let version = model.releaseStatus.availableVersion {
+                Button {
+                    aboutPresented = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Label("Update available", systemImage: "arrow.down.circle")
+                        Spacer()
+                        Text(version).foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right").font(.caption2)
+                    }
+                    .font(.callout)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .accessibilityLabel("Version \(version) available. View update details")
+
+                Divider()
+            }
+
             content
                 .padding(12)
 
