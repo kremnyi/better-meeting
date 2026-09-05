@@ -7,6 +7,7 @@ enum AudioExtractor {
         to audioURL: URL,
         progressHandler: @escaping @Sendable (Double) -> Void
     ) async throws {
+        try Task.checkCancellation()
         let temporaryURL = audioURL.deletingLastPathComponent()
             .appendingPathComponent(".audio-\(UUID().uuidString).m4a")
         defer { try? FileManager.default.removeItem(at: temporaryURL) }
@@ -31,6 +32,8 @@ enum AudioExtractor {
                 }
             }
             defer { group.cancelAll() }
+            // macOS 15 can raise an Objective-C exception when export starts already cancelled.
+            try Task.checkCancellation()
             try await exporter.export(to: temporaryURL, as: .m4a)
         }
 
