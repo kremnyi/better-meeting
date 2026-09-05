@@ -236,6 +236,14 @@ final class RecoveryTests: XCTestCase {
             for frame in 0..<100 { channels[1][frame * buffer.stride] = 2 }
             XCTAssertEqual(MeetingRecorder.meterLevel(buffer), 1)
         }
+        for commonFormat: AVAudioCommonFormat in [.pcmFormatInt16, .pcmFormatInt32] {
+            let format = try XCTUnwrap(AVAudioFormat(commonFormat: commonFormat, sampleRate: 48_000, channels: 1, interleaved: false))
+            let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 100))
+            buffer.frameLength = 100
+            buffer.int16ChannelData?[0].update(repeating: 16384, count: 100)
+            buffer.int32ChannelData?[0].update(repeating: 1073741824, count: 100)
+            XCTAssertEqual(MeetingRecorder.meterLevel(buffer), (20 * log10(0.5) + 60) / 60, accuracy: 0.001)
+        }
     }
 
     @MainActor

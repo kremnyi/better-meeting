@@ -173,11 +173,27 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
     }
 
     static func meterLevel(_ buffer: AVAudioPCMBuffer) -> Double {
-        guard buffer.frameLength > 0, let channels = buffer.floatChannelData else { return 0 }
+        guard buffer.frameLength > 0 else { return 0 }
         var peakRMS: Float = 0
         for channel in 0..<Int(buffer.format.channelCount) {
             var rms: Float = 0
-            vDSP_rmsqv(channels[channel], vDSP_Stride(buffer.stride), &rms, vDSP_Length(buffer.frameLength))
+            let count = vDSP_Length(buffer.frameLength)
+            let stride = vDSP_Stride(buffer.stride)
+            if let channels = buffer.floatChannelData {
+                vDSP_rmsqv(channels[channel], stride, &rms, count)
+            } else {
+                var samples = [Float](repeating: 0, count: Int(count))
+                let scale: Float
+                if let channels = buffer.int16ChannelData {
+                    vDSP_vflt16(channels[channel], stride, &samples, 1, count)
+                    scale = 32768
+                } else if let channels = buffer.int32ChannelData {
+                    vDSP_vflt32(channels[channel], stride, &samples, 1, count)
+                    scale = 2147483648
+                } else { return 0 }
+                vDSP_rmsqv(samples, 1, &rms, count)
+                rms /= scale
+            }
             peakRMS = max(peakRMS, rms)
         }
         guard peakRMS.isFinite, peakRMS > 0 else { return 0 }
