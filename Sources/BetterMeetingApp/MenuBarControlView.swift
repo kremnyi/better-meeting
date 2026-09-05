@@ -17,6 +17,20 @@ struct MenuBarControlView: View {
             Divider()
 
             HStack(spacing: 8) {
+                Button {
+                    captureOptionsPresented.toggle()
+                } label: {
+                    Label("Options", systemImage: "slider.horizontal.3")
+                }
+                .buttonStyle(.plain)
+                .font(.callout)
+                .disabled(model.state != .idle)
+                .popover(isPresented: $captureOptionsPresented, arrowEdge: .top) {
+                    captureOptions
+                        .padding(12)
+                        .frame(width: 304)
+                }
+
                 Spacer()
 
                 Button("Quit") {
@@ -71,21 +85,6 @@ struct MenuBarControlView: View {
         VStack(alignment: .leading, spacing: 12) {
             TextField("Meeting name (optional)", text: $model.meetingTitle)
                 .textFieldStyle(.roundedBorder)
-
-            Button {
-                captureOptionsPresented.toggle()
-            } label: {
-                Label("Capture options", systemImage: "slider.horizontal.3")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .font(.callout)
-            .popover(isPresented: $captureOptionsPresented, arrowEdge: .trailing) {
-                captureOptions
-                    .padding(12)
-                    .frame(width: 304)
-            }
 
             primaryActionButton
 

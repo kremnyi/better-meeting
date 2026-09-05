@@ -6,7 +6,7 @@ folder with the video, audio, and transcript, accessible from a Finder button.
 
 Requires an Apple Silicon Mac and macOS 15 or newer.
 
-<img src="docs/menu-bar.png" alt="Better Meeting menu with Capture options and Finder buttons for recent meetings" width="304">
+<img src="docs/menu-bar.png" alt="Better Meeting menu with Options in the bottom-left corner and Finder buttons for recent meetings" width="304">
 
 The app's menu, shown with fictional meetings.
 
@@ -43,7 +43,7 @@ signatures change with new builds. Uninstalling the app keeps saved meetings.
    multilingual Whisper `small` model before your first meeting. Otherwise,
    setup happens when that recording stops.
 2. Enter a meeting name or leave it empty for automatic naming.
-3. Under **Capture options**, choose a display, microphone, and save folder.
+3. Open **Options** in the bottom-left corner to choose a display, microphone, and save folder.
    The app remembers these choices. Defaults are the main display, system
    microphone, and `~/Documents/Better Meetings`.
 4. Start recording and grant **Screen & System Audio Recording** and
@@ -51,7 +51,7 @@ signatures change with new builds. Uninstalling the app keeps saved meetings.
 5. Stop recording and wait for transcription. Click the folder button beside the
    finished meeting to open its files in Finder.
 
-Capture options also include **Resolution** and **Frame rate**, defaulting to
+Options also include **Resolution** and **Frame rate**, defaulting to
 1440 px and 10 fps. Resolution limits the video's longest edge to 1280, 1440,
 1920, or 2560 pixels. It uses Retina pixels, preserves the display's proportions,
 and never upscales smaller displays. Frame rate sets a maximum of 5, 10, or
