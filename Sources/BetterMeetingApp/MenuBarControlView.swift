@@ -253,14 +253,6 @@ struct MenuBarControlView: View {
             .accessibilityLabel("Show \(item.title) in Finder")
         }
         .frame(minHeight: 43)
-        .contentShape(Rectangle())
-        .contextMenu {
-            Button("Copy Transcript") {
-                do { try model.copyTranscript(item) }
-                catch { NSAlert(error: error).runModal() }
-            }
-            Button("Rename…") { model.renameMeeting(item) }
-        }
     }
 
     private var destinationButton: some View {
