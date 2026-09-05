@@ -66,6 +66,11 @@ While recording, separate microphone and system-audio meters show incoming sound
 An empty meter can mean silence; check the selected input if it stays empty while
 you expect sound.
 
+The menu-bar icon spins during processing, or stays still with Reduce Motion enabled.
+A warning icon appears if recording or transcription fails and stays until you retry
+or dismiss the error. Search, Finder, and **Copy Transcript** remain available during
+transcription and export; renaming and starting another job wait until processing finishes.
+
 Options groups settings under **Recording**, **Transcription**, and **Files**.
 **Resolution** and **Frame rate** default to
 1440 px and 10 fps. Resolution limits the video's longest edge to 1280, 1440,

@@ -162,6 +162,7 @@ struct MenuBarControlView: View {
                         }
                     }
                 }
+                .disabled(model.state != .idle)
                 .help("Retry transcription from a saved recording")
             }
 
@@ -182,7 +183,7 @@ struct MenuBarControlView: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(model.transcriptionHistory) { item in
-                                historyRow(item, isSaved: item.folderURL == model.completedFolder)
+                                historyRow(item, isSaved: item.folderURL == model.completedFolder, canEdit: model.state == .idle)
 
                                 if item.id != model.transcriptionHistory.last?.id {
                                     Divider()
@@ -208,7 +209,7 @@ struct MenuBarControlView: View {
         }
     }
 
-    func historyRow(_ item: MeetingHistoryItem, isSaved: Bool) -> some View {
+    func historyRow(_ item: MeetingHistoryItem, isSaved: Bool, canEdit: Bool) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -255,8 +256,11 @@ struct MenuBarControlView: View {
                 catch { NSAlert(error: error).runModal() }
             }
             Button("Rename…") { model.renameMeeting(item) }
+                .disabled(!canEdit)
             Button("Re-transcribe…") { retranscribingMeeting = item }
+                .disabled(!canEdit)
             Button("Export bundle…") { model.exportBundle(item) }
+                .disabled(!canEdit)
         }
     }
 
@@ -327,6 +331,10 @@ struct MenuBarControlView: View {
             Button(model.isExportingBundle ? "Cancel export" : "Cancel transcription", action: model.cancelTranscription)
                 .disabled(!model.canCancelTranscription)
                 .help(model.isExportingBundle ? "Keeps the transcript and previous export bundle" : "Keeps the recording and completed language passes so you can resume later")
+
+            Divider()
+
+            historySection
         }
     }
 

@@ -493,6 +493,7 @@ final class AppModel: ObservableObject {
     }
 
     func renameMeeting(_ meeting: MeetingHistoryItem) {
+        guard state == .idle else { return }
         let alert = NSAlert()
         alert.messageText = "Rename meeting"
         alert.addButton(withTitle: "Rename")

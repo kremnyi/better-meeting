@@ -160,6 +160,53 @@ final class RecoveryTests: XCTestCase {
     }
 
     @MainActor
+    func testHistoryRemainsSearchableDuringProcessingAndCancellationShowsRecovery() async throws {
+        let suite = "BetterMeetingProcessing.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defaults.set(root, forKey: "outputFolder")
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let date = Date(timeIntervalSince1970: 1_788_530_400)
+        let saved = try MeetingArtifacts.createDirectory(in: root, title: "Product sync", recordedAt: date)
+        try MeetingArtifacts.write(title: "Product sync", recordedAt: date, duration: 720, segments: [], to: saved)
+        let pending = try MeetingArtifacts.createDirectory(in: root, title: "Release planning", recordedAt: date)
+        try Data([1]).write(to: pending.appendingPathComponent("recording.mp4"))
+        _ = NSApplication.shared
+        let model = AppModel(defaults: defaults)
+        let item = try XCTUnwrap(model.unfinishedRecordings.first)
+        model.retryTranscription(item)
+        let processing = try XCTUnwrap(model.processingTask)
+        XCTAssertEqual(model.state, .processing)
+        let view = NSHostingView(rootView: MenuBarControlView().environmentObject(model)
+            .environment(\.colorScheme, .light).background(Color(nsColor: .windowBackgroundColor)))
+        view.frame = NSRect(origin: .zero, size: view.fittingSize)
+        view.layoutSubtreeIfNeeded()
+        func searchField(in view: NSView) -> NSSearchField? {
+            (view as? NSSearchField) ?? view.subviews.lazy.compactMap { searchField(in: $0) }.first
+        }
+        let field = try XCTUnwrap(searchField(in: view), "Processing must keep the history search visible")
+        XCTAssertTrue(field.isEnabled)
+        if let path = ProcessInfo.processInfo.environment["BETTER_MEETING_PANELS_PREVIEW_PATH"] {
+            try writePreview(view, to: URL(fileURLWithPath: path).appendingPathComponent("processing.png"))
+        }
+        field.stringValue = "Product"
+        field.sendAction(field.action, to: field.target)
+        XCTAssertEqual(model.historyQuery, "Product")
+        model.cancelTranscription()
+        await processing.value
+        await model.historySearchTask?.value
+        XCTAssertEqual(model.state, .idle)
+        XCTAssertEqual(model.transcriptionHistory.map(\.title), ["Product sync"])
+        XCTAssertEqual(model.unfinishedRecordings.first?.folderURL.resolvingSymlinksInPath(), pending.resolvingSymlinksInPath())
+        if let path = ProcessInfo.processInfo.environment["BETTER_MEETING_PANELS_PREVIEW_PATH"] {
+            try writePreview(view, to: URL(fileURLWithPath: path).appendingPathComponent("cancelled.png"))
+        }
+    }
+
+    @MainActor
     func testPopoversDoNotResizeMenu() throws {
         let suite = "BetterMeetingLayout.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -272,7 +319,7 @@ final class RecoveryTests: XCTestCase {
             needsTranscription: false, titleWasProvided: false
         )
         for saved in [false, true] {
-            let row = NSHostingView(rootView: MenuBarControlView().historyRow(item, isSaved: saved)
+            let row = NSHostingView(rootView: MenuBarControlView().historyRow(item, isSaved: saved, canEdit: true)
                 .environment(\.locale, Locale(identifier: "en_US"))
                 .frame(width: 264))
             XCTAssertEqual(row.fittingSize.height, 47, "The saved indicator must not wrap meeting details")
