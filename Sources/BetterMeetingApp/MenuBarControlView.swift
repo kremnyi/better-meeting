@@ -74,37 +74,57 @@ struct MenuBarControlView: View {
             destinationButton
 
             DisclosureGroup("Capture options") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Picker("Display", selection: $model.selectedDisplayID) {
-                        Text("Main display").tag(UInt32(0))
-                        ForEach(model.displays, id: \.id) { display in
-                            Text(display.name).tag(display.id)
+                Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                    GridRow {
+                        Text("Display")
+                        Picker("Display", selection: $model.selectedDisplayID) {
+                            Text("Main display").tag(UInt32(0))
+                            ForEach(model.displays, id: \.id) { display in
+                                Text(display.name).tag(display.id)
+                            }
+                            if model.selectedDisplayID != 0 && !model.displays.contains(where: { $0.id == model.selectedDisplayID }) {
+                                Text("Unavailable display").tag(model.selectedDisplayID)
+                            }
                         }
-                        if model.selectedDisplayID != 0 && !model.displays.contains(where: { $0.id == model.selectedDisplayID }) {
-                            Text("Unavailable display").tag(model.selectedDisplayID)
-                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
                     }
-                    Picker("Microphone", selection: $model.selectedMicrophoneID) {
-                        Text("System default").tag("")
-                        ForEach(model.microphones, id: \.uniqueID) { microphone in
-                            Text(microphone.localizedName).tag(microphone.uniqueID)
+                    GridRow {
+                        Text("Microphone")
+                        Picker("Microphone", selection: $model.selectedMicrophoneID) {
+                            Text("System default").tag("")
+                            ForEach(model.microphones, id: \.uniqueID) { microphone in
+                                Text(microphone.localizedName).tag(microphone.uniqueID)
+                            }
+                            if !model.selectedMicrophoneID.isEmpty && !model.microphones.contains(where: { $0.uniqueID == model.selectedMicrophoneID }) {
+                                Text("Unavailable microphone").tag(model.selectedMicrophoneID)
+                            }
                         }
-                        if !model.selectedMicrophoneID.isEmpty && !model.microphones.contains(where: { $0.uniqueID == model.selectedMicrophoneID }) {
-                            Text("Unavailable microphone").tag(model.selectedMicrophoneID)
-                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
                     }
-                    Picker("Resolution", selection: $model.captureResolution) {
-                        ForEach(CaptureResolution.allCases, id: \.self) { resolution in
-                            Text(resolution.label).tag(resolution)
+                    GridRow {
+                        Text("Resolution")
+                        Picker("Resolution", selection: $model.captureResolution) {
+                            ForEach(CaptureResolution.allCases, id: \.self) { resolution in
+                                Text(resolution.label).tag(resolution)
+                            }
                         }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                        .help("Limits the video's longest edge without upscaling")
                     }
-                    .help("Limits the video's longest edge without upscaling")
-                    Picker("Frame rate", selection: $model.captureQuality) {
-                        ForEach(CaptureQuality.allCases, id: \.self) { quality in
-                            Text(quality.label).tag(quality)
+                    GridRow {
+                        Text("Frame rate")
+                        Picker("Frame rate", selection: $model.captureQuality) {
+                            ForEach(CaptureQuality.allCases, id: \.self) { quality in
+                                Text(quality.label).tag(quality)
+                            }
                         }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                        .help("Higher frame rates make motion smoother and use more storage")
                     }
-                    .help("Higher frame rates make motion smoother and use more storage")
                 }
                 .controlSize(.small)
                 .padding(.top, 6)
