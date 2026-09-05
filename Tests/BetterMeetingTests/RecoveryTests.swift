@@ -196,14 +196,8 @@ final class RecoveryTests: XCTestCase {
                 else { aboutHeight = view.fittingSize.height }
             }
             if let path = ProcessInfo.processInfo.environment["BETTER_MEETING_PANELS_PREVIEW_PATH"] {
-                view.appearance = NSAppearance(named: .aqua)
-                view.frame = NSRect(origin: .zero, size: view.fittingSize)
-                view.layoutSubtreeIfNeeded()
-                let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-                view.cacheDisplay(in: view.bounds, to: bitmap)
                 let output = URL(fileURLWithPath: path).appendingPathComponent("\(name).png")
-                try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: output)
+                try writePreview(view, to: output)
             }
         }
     }
@@ -297,13 +291,17 @@ final class RecoveryTests: XCTestCase {
             .environmentObject(model)
             .environment(\.colorScheme, .light)
             .background(Color(nsColor: .windowBackgroundColor)))
+        try writePreview(view, to: URL(fileURLWithPath: path))
+    }
+
+    @MainActor
+    private func writePreview(_ view: NSView, to output: URL) throws {
         view.appearance = NSAppearance(named: .aqua)
         view.frame = NSRect(origin: .zero, size: view.fittingSize)
         view.layoutSubtreeIfNeeded()
         let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: bitmap)
         let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-        let output = URL(fileURLWithPath: path)
         try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
         try png.write(to: output)
     }
