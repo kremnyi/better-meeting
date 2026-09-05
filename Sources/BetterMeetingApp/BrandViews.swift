@@ -11,6 +11,23 @@ enum BrandAssets {
         return image
     }()
 
+    // MenuBarExtra extracts an image from its label; symbol effects do not animate it.
+    static let processingMenuBarFrames: [NSImage] = (0..<12).map { frame in
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+            NSColor.black.setStroke()
+            let arc = NSBezierPath()
+            arc.lineWidth = 2
+            arc.lineCapStyle = .round
+            let angle = CGFloat(frame) * -30
+            arc.appendArc(withCenter: NSPoint(x: 9, y: 9), radius: 6,
+                          startAngle: angle, endAngle: angle + 270)
+            arc.stroke()
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
+
     static func recordingMenuBarIcon(for colorScheme: ColorScheme) -> NSImage {
         let pointSize = NSSize(width: 18, height: 18)
         let image = NSImage(size: pointSize, flipped: false) { rect in
@@ -30,21 +47,18 @@ enum BrandAssets {
 }
 
 struct MenuBarStatusIcon: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
     let state: AppState
+    var processingFrame = 0
 
     @ViewBuilder
     var body: some View {
         if state == .processing {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 13, weight: .medium))
-                .symbolEffect(
-                    .rotate,
-                    options: .repeating,
-                    isActive: !reduceMotion
-                )
+            Image(nsImage: BrandAssets.processingMenuBarFrames[processingFrame])
+                .statusIconAccessibility(accessibilityLabel)
+        } else if state == .failed {
+            Image(systemName: "exclamationmark.triangle.fill")
                 .statusIconAccessibility(accessibilityLabel)
         } else {
             Image(

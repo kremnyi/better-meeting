@@ -148,6 +148,18 @@ final class RecoveryTests: XCTestCase {
     }
 
     @MainActor
+    func testProcessingIconFramesAreDistinctTemplateImages() throws {
+        let frames = BrandAssets.processingMenuBarFrames
+        XCTAssertGreaterThan(frames.count, 1)
+        let rendered = try frames.map { image in
+            XCTAssertTrue(image.isTemplate, "The menu bar must adapt to light and dark appearances")
+            XCTAssertEqual(image.size, NSSize(width: 18, height: 18))
+            return try XCTUnwrap(image.tiffRepresentation)
+        }
+        XCTAssertEqual(Set(rendered).count, frames.count, "Every animation tick must change the image")
+    }
+
+    @MainActor
     func testPopoversDoNotResizeMenu() throws {
         let suite = "BetterMeetingLayout.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
