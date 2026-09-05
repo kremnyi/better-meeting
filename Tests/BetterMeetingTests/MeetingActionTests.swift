@@ -4,6 +4,53 @@ import XCTest
 @testable import BetterMeetingApp
 
 final class MeetingActionTests: XCTestCase {
+    @MainActor
+    func testRetranscriptionPreservesSavedFilesOnCancellationAndFailure() async throws {
+        let suite = "BetterMeetingReplace.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        let fm = FileManager.default
+        defaults.set(root, forKey: "outputFolder")
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? fm.removeItem(at: root)
+        }
+        let folder = try MeetingArtifacts.createDirectory(in: root, title: "Keep this title", recordedAt: Date())
+        try MeetingArtifacts.write(title: "Keep this title", recordedAt: Date(), duration: 12, segments: [], titleWasProvided: false, to: folder)
+        try "# Keep this title\n\nEdited notes".write(to: folder.appendingPathComponent("transcript.md"), atomically: true, encoding: .utf8)
+        let names = ["transcript.md", "transcript.json", "metadata.json"]
+        let original = try names.map { try Data(contentsOf: folder.appendingPathComponent($0)) }
+        let model = AppModel(defaults: defaults)
+        let item = try XCTUnwrap(model.transcriptionHistory.first)
+        model.retryTranscription(item)
+        XCTAssertTrue(model.canCancelTranscription)
+        model.cancelTranscription()
+        await model.processingTask?.value
+        XCTAssertEqual(model.state, .idle)
+        XCTAssertFalse(model.canCancelTranscription)
+        XCTAssertEqual(try names.map { try Data(contentsOf: folder.appendingPathComponent($0)) }, original)
+        // Missing source media must fail without marking the saved transcript unfinished.
+        model.retryTranscription(item)
+        await model.processingTask?.value
+        XCTAssertEqual(model.state, .failed)
+        XCTAssertEqual(try names.map { try Data(contentsOf: folder.appendingPathComponent($0)) }, original)
+        XCTAssertFalse(try XCTUnwrap(model.transcriptionHistory.first).needsTranscription)
+
+        let segments = [TranscriptSegment(start: 0, end: 1, text: "Replacement", language: "en")]
+        let json = folder.appendingPathComponent("transcript.json")
+        try fm.setAttributes([.immutable: true], ofItemAtPath: json.path)
+        defer { try? fm.setAttributes([.immutable: false], ofItemAtPath: json.path) }
+        XCTAssertThrowsError(try MeetingArtifacts.replaceTranscript(for: item, duration: 12, segments: segments))
+        XCTAssertEqual(try names.map { try Data(contentsOf: folder.appendingPathComponent($0)) }, original)
+        try fm.setAttributes([.immutable: false], ofItemAtPath: json.path)
+        try MeetingArtifacts.replaceTranscript(for: item, duration: 12, segments: segments)
+        XCTAssertTrue(try String(contentsOf: folder.appendingPathComponent("transcript.md"), encoding: .utf8).contains("Replacement"))
+        let updated = try XCTUnwrap(MeetingArtifacts.meetings(in: root).first)
+        XCTAssertEqual(updated.title, item.title)
+        XCTAssertFalse(updated.titleWasProvided)
+        XCTAssertFalse(try fm.contentsOfDirectory(atPath: folder.path).contains { $0.hasPrefix(".transcript-") })
+    }
+
     func testRenamePreservesMeetingContents() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

@@ -90,6 +90,11 @@ Right-click a completed meeting to **Copy Transcript** or **Rename…**. Copy us
 the saved Markdown, including any edits. Rename updates the folder, title, and
 metadata while keeping the transcript body and media files.
 
+**Re-transcribe…** lets you choose languages and vocabulary for a saved meeting.
+It reuses matching passes and keeps the current transcript available until the
+replacement is ready. A successful run replaces the transcript, including manual
+edits, while preserving the meeting name. Cancellation or failure keeps the old files.
+
 Before your first recording or retry, the app asks permission to send completion
 notifications. Allow them to see when transcription finishes or needs attention;
 clicking a notification opens that meeting's folder. You can change this in

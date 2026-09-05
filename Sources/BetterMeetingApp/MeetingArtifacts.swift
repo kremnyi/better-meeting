@@ -171,6 +171,46 @@ enum MeetingArtifacts {
         )
     }
 
+    static func replaceTranscript(
+        for meeting: MeetingHistoryItem, duration: TimeInterval, segments: [TranscriptSegment]
+    ) throws {
+        let fm = FileManager.default
+        let names = ["transcript.md", "transcript.json", "metadata.json"]
+        let originals = try names.map { try Data(contentsOf: meeting.folderURL.appendingPathComponent($0)) }
+        let staging = meeting.folderURL.appendingPathComponent(".transcript-\(UUID().uuidString)")
+        try fm.createDirectory(at: staging, withIntermediateDirectories: false)
+        do {
+            try write(title: meeting.title, recordedAt: meeting.recordedAt, duration: duration,
+                      segments: segments, titleWasProvided: meeting.titleWasProvided, to: staging)
+            // Keep durable backups until all replacements succeed, including across an interrupted write.
+            for (name, original) in zip(names, originals) {
+                try original.write(to: staging.appendingPathComponent("previous-" + name), options: .atomic)
+            }
+        } catch {
+            try? fm.removeItem(at: staging)
+            throw error
+        }
+        var replaced: [Int] = []
+        do {
+            for (index, name) in names.enumerated() {
+                let data = try Data(contentsOf: staging.appendingPathComponent(name))
+                try data.write(to: meeting.folderURL.appendingPathComponent(name), options: .atomic)
+                replaced.append(index)
+            }
+        } catch {
+            do {
+                for index in replaced {
+                    try originals[index].write(to: meeting.folderURL.appendingPathComponent(names[index]), options: .atomic)
+                }
+            } catch {
+                throw MeetingActionError.transcriptRecovery(staging)
+            }
+            try? fm.removeItem(at: staging)
+            throw error
+        }
+        try? fm.removeItem(at: staging)
+    }
+
     static func meetings(in root: URL) -> [MeetingHistoryItem] {
         let folders = (try? FileManager.default.contentsOfDirectory(
             at: root,
@@ -279,12 +319,14 @@ enum MeetingActionError: LocalizedError {
     case emptyTitle
     case invalidMeeting
     case clipboardUnavailable
+    case transcriptRecovery(URL)
 
     var errorDescription: String? {
         switch self {
         case .emptyTitle: "Enter a meeting name."
         case .invalidMeeting: "The meeting's transcript or metadata could not be read."
         case .clipboardUnavailable: "The transcript could not be copied to the clipboard."
+        case .transcriptRecovery(let folder): "The transcript could not be restored. Previous files are saved in \(folder.path)."
         }
     }
 }

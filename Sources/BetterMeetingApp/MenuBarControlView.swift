@@ -4,6 +4,7 @@ import SwiftUI
 struct MenuBarControlView: View {
     @EnvironmentObject private var model: AppModel
     @State var captureOptionsPresented = false
+    @State private var retranscribingMeeting: MeetingHistoryItem?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -42,6 +43,14 @@ struct MenuBarControlView: View {
             .padding(.vertical, 8)
         }
         .frame(width: 304)
+        .sheet(item: $retranscribingMeeting) { meeting in
+            RetranscriptionView(
+                meeting: meeting, language: model.transcriptionLanguage,
+                candidates: model.candidateLanguages, hints: model.transcriptionHints
+            ) { languages, hints in
+                model.retryTranscription(meeting, languages: languages, hints: hints)
+            }
+        }
         .onAppear {
             model.refreshHistory()
             model.refreshInputs()
@@ -157,41 +166,10 @@ struct MenuBarControlView: View {
                 .frame(maxWidth: .infinity)
                 .help("Higher frame rates make motion smoother and use more storage")
             }
-            GridRow {
-                Text("Language")
-                Picker("Transcription language", selection: $model.transcriptionLanguage) {
-                    ForEach(TranscriptionLanguage.allCases, id: \.self) { language in
-                        Text(language.label).tag(language)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-                .help("Auto runs each candidate language separately, then merges by confidence")
-            }
-            if model.transcriptionLanguage == .auto {
-                GridRow {
-                    Text("Candidates")
-                    Menu(model.candidateLanguages.joined(separator: ", ").uppercased()) {
-                        ForEach(TranscriptionLanguage.allCases.filter { $0 != .auto }, id: \.self) { language in
-                            Toggle(language.label, isOn: Binding(
-                                get: { model.candidateLanguages.contains(language.rawValue) },
-                                set: { selected in
-                                    if selected { model.candidateLanguages.append(language.rawValue) }
-                                    else { model.candidateLanguages.removeAll { $0 == language.rawValue } }
-                                }
-                            ))
-                            .disabled(model.candidateLanguages == [language.rawValue])
-                        }
-                    }
-                    .help("One pass per selected language. Fewer languages finish sooner.")
-                }
-            }
-            GridRow {
-                Text("Vocabulary")
-                TextField("Names and terms (optional)", text: $model.transcriptionHints)
-                    .textFieldStyle(.roundedBorder)
-                    .help("Comma-separated names, companies, or technical terms to help Whisper recognize them")
-            }
+            TranscriptionOptionsView(
+                language: $model.transcriptionLanguage,
+                candidates: $model.candidateLanguages, hints: $model.transcriptionHints
+            )
             GridRow {
                 Text("Save to")
                 destinationButton
@@ -294,6 +272,7 @@ struct MenuBarControlView: View {
                 catch { NSAlert(error: error).runModal() }
             }
             Button("Rename…") { model.renameMeeting(item) }
+            Button("Re-transcribe…") { retranscribingMeeting = item }
         }
     }
 

@@ -101,7 +101,7 @@ final class AppModel: ObservableObject {
     private var timer: Timer?
     private var preparingModelOnly = false
     private var quitWhenFinished = false
-    private var processingTask: Task<Void, Never>?
+    private(set) var processingTask: Task<Void, Never>?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -233,7 +233,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func retryTranscription(_ item: MeetingHistoryItem) {
+    func retryTranscription(_ item: MeetingHistoryItem, languages: [String]? = nil, hints: String? = nil) {
         guard state == .idle || state == .failed else { return }
         preparingModelOnly = false
         activeFolder = item.folderURL
@@ -248,7 +248,10 @@ final class AppModel: ObservableObject {
         setProcessingPhase(.preparingAudio)
         processingTask = Task {
             await MeetingNotifications.requestPermission()
-            await finishRecording(stopCapture: false)
+            await finishRecording(
+                stopCapture: false, replacing: item.needsTranscription ? nil : item,
+                languages: languages, hints: hints
+            )
         }
     }
 
@@ -464,12 +467,18 @@ final class AppModel: ObservableObject {
         setProcessingPhase(.finalizingRecording)
     }
 
-    private func finishRecording(stopCapture: Bool) async {
+    private func finishRecording(
+        stopCapture: Bool, replacing: MeetingHistoryItem? = nil,
+        languages: [String]? = nil, hints: String? = nil
+    ) async {
         defer {
             processingTask = nil
             cancellingTranscription = false
         }
+        let languages = languages ?? transcriptionLanguages
+        let hints = hints ?? transcriptionHints
         do {
+            try Task.checkCancellation()
             guard var folder = activeFolder, let recordedAt else {
                 throw AppError.missingRecording
             }
@@ -492,13 +501,15 @@ final class AppModel: ObservableObject {
             let audio = try AVAudioFile(forReading: audioURL)
             try Task.checkCancellation()
             elapsed = Double(audio.length) / audio.fileFormat.sampleRate
-            try MeetingArtifacts.writeMetadata(
-                title: meetingTitle, recordedAt: recordedAt, duration: elapsed,
-                titleWasProvided: titleWasProvided, to: folder
-            )
+            if replacing == nil {
+                try MeetingArtifacts.writeMetadata(
+                    title: meetingTitle, recordedAt: recordedAt, duration: elapsed,
+                    titleWasProvided: titleWasProvided, to: folder
+                )
+            }
 
             let segments = try await transcriber.transcribe(
-                audioURL: audioURL, languages: transcriptionLanguages, hints: transcriptionHints
+                audioURL: audioURL, languages: languages, hints: hints
             ) { [weak self] progress in
                 Task { @MainActor [weak self] in
                     self?.updateTranscriptionProgress(progress)
@@ -507,7 +518,7 @@ final class AppModel: ObservableObject {
 
             try Task.checkCancellation()
             setProcessingPhase(.writingFiles)
-            if !titleWasProvided {
+            if !titleWasProvided && replacing == nil {
                 let generatedTitle = await Task.detached(priority: .utility) {
                     MeetingTitle.suggest(from: segments.map(\.text).joined(separator: "\n"))
                 }.value
@@ -517,14 +528,18 @@ final class AppModel: ObservableObject {
                     meetingTitle = generatedTitle
                 }
             }
-            try MeetingArtifacts.write(
-                title: meetingTitle,
-                recordedAt: recordedAt,
-                duration: elapsed,
-                segments: segments,
-                titleWasProvided: titleWasProvided,
-                to: folder
-            )
+            if let replacing {
+                try MeetingArtifacts.replaceTranscript(for: replacing, duration: elapsed, segments: segments)
+            } else {
+                try MeetingArtifacts.write(
+                    title: meetingTitle,
+                    recordedAt: recordedAt,
+                    duration: elapsed,
+                    segments: segments,
+                    titleWasProvided: titleWasProvided,
+                    to: folder
+                )
+            }
 
             completedFolder = folder
             modelReady = LocalTranscriber.cachedModelFolder() != nil
