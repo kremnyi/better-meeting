@@ -110,6 +110,11 @@ final class AppModel: ObservableObject {
     private(set) var processingTask: Task<Void, Never>?
     private(set) var historySearchTask: Task<Void, Never>?
     private var completedMeetings: [MeetingHistoryItem] = []
+    private var lastTranscriptionOptions: (languages: [String], hints: String)?
+
+    private var retryableMeeting: MeetingHistoryItem? {
+        (unfinishedRecordings + completedMeetings).first { $0.folderURL == completedFolder }
+    }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -144,7 +149,7 @@ final class AppModel: ObservableObject {
                 "Restart Better Meeting"
             } else if preparingModelOnly {
                 "Retry model setup"
-            } else if unfinishedRecordings.contains(where: { $0.folderURL == completedFolder }) {
+            } else if retryableMeeting != nil {
                 "Retry transcription"
             } else {
                 "Try again"
@@ -159,7 +164,7 @@ final class AppModel: ObservableObject {
         if state == .failed, privacyPermission == .screenRecording {
             return "arrow.clockwise"
         }
-        if state == .failed, preparingModelOnly || unfinishedRecordings.contains(where: { $0.folderURL == completedFolder }) {
+        if state == .failed, preparingModelOnly || retryableMeeting != nil {
             return "arrow.clockwise"
         }
         return "record.circle"
@@ -196,9 +201,8 @@ final class AppModel: ObservableObject {
             restartApplication()
         } else if state == .failed, preparingModelOnly {
             prepareSpeechModel()
-        } else if state == .failed, let folder = completedFolder,
-                  let item = unfinishedRecordings.first(where: { $0.folderURL == folder }) {
-            retryTranscription(item)
+        } else if state == .failed, let item = retryableMeeting {
+            retryTranscription(item, languages: lastTranscriptionOptions?.languages, hints: lastTranscriptionOptions?.hints)
         } else if state == .idle || state == .failed {
             startRecording()
         }
@@ -508,6 +512,7 @@ final class AppModel: ObservableObject {
         }
         let languages = languages ?? transcriptionLanguages
         let hints = hints ?? transcriptionHints
+        lastTranscriptionOptions = (languages, hints)
         do {
             try Task.checkCancellation()
             guard var folder = activeFolder, let recordedAt else {
