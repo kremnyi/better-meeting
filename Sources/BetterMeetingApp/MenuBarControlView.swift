@@ -33,14 +33,6 @@ struct MenuBarControlView: View {
 
                 Spacer()
 
-                Button("About") {
-                    aboutPresented.toggle()
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $aboutPresented, arrowEdge: .top) {
-                    AboutView()
-                }
-
                 Button("Quit") {
                     NSApp.terminate(nil)
                 }
@@ -70,12 +62,28 @@ struct MenuBarControlView: View {
             Text("Better Meeting")
                 .font(.headline)
 
-            if model.state != .idle {
-                Spacer()
+            Spacer()
 
+            if model.state != .idle {
                 Label(model.state.label, systemImage: model.state.symbol)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(model.state.tint)
+            }
+
+            Button {
+                aboutPresented.toggle()
+            } label: {
+                Image(systemName: "info.circle")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("About Better Meeting")
+            .accessibilityLabel("About Better Meeting")
+            .popover(isPresented: $aboutPresented, arrowEdge: .top) {
+                AboutView()
             }
         }
         .padding(.horizontal, 12)

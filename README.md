@@ -6,7 +6,7 @@ folder with the video, audio, and transcript, accessible from a Finder button.
 
 Requires an Apple Silicon Mac and macOS 15 or newer.
 
-<img src="docs/menu-bar.png" alt="Better Meeting menu with Options in the bottom-left corner and Finder buttons for recent meetings" width="304">
+<img src="docs/menu-bar.png" alt="Better Meeting menu with About in the top-right corner, Options at the bottom left, and Finder buttons for recent meetings" width="304">
 
 The app's menu, shown with fictional meetings.
 
@@ -27,7 +27,8 @@ macOS blocks the first launch, try opening the app, then use **System Settings
 → Privacy & Security → Open Anyway**. See [Apple's instructions](https://support.apple.com/102445).
 Managed Macs may not allow this exception.
 
-Open **About** in the menu footer to see the installed version and release page.
+Click the **ⓘ** button in the top-right corner to open **About**, with the installed
+version and release notes.
 **Check for Updates** contacts GitHub when clicked and reports whether a newer
 release is available. When one is found, **Update to [version]** appears for apps
 installed with Homebrew at `/opt/homebrew`. It opens Terminal, quits the app,
