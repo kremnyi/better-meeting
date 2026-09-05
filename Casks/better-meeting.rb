@@ -1,6 +1,6 @@
 cask "better-meeting" do
-  version "0.3.4"
-  sha256 "5859fbbc9692896c8375e80f80df1baac00f9f20777e6a607947d380db8f33b4"
+  version "0.3.5"
+  sha256 "7370a633b4401fe67ebe09f44e51da7a6804336fdfec93a7755f65530e16fc88"
 
   url "https://github.com/kremnyi/better-meeting/releases/download/v#{version}/Better-Meeting-#{version}-arm64.zip"
   name "Better Meeting"
@@ -13,8 +13,8 @@ cask "better-meeting" do
   app "Better Meeting.app"
 
   caveats <<~EOS
-    This app is ad-hoc signed and is not notarized by Apple.
+    This app uses a self-signed certificate and is not notarized by Apple.
     If macOS blocks opening it, use System Settings > Privacy & Security > Open Anyway.
-    Updates may require granting Screen Recording and Microphone access again.
+    Upgrading from 0.3.4 or older requires granting recording permissions again.
   EOS
 end

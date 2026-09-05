@@ -22,7 +22,7 @@ The cask downloads the app from [GitHub Releases](https://github.com/kremnyi/bet
 and verifies its SHA-256 checksum. You can also download the ZIP there, extract
 it, and move the app to `/Applications`. Xcode is not required.
 
-Releases are ad-hoc signed, without an Apple Developer ID or notarization. If
+Releases use a self-signed certificate, without an Apple Developer ID or notarization. If
 macOS blocks the first launch, try opening the app, then use **System Settings
 → Privacy & Security → Open Anyway**. See [Apple's instructions](https://support.apple.com/102445).
 Managed Macs may not allow this exception.
@@ -34,8 +34,10 @@ brew update
 brew upgrade --cask kremnyi/better-meeting/better-meeting
 ```
 
-macOS may require recording permissions again after an update because ad-hoc
-signatures change with new builds. Uninstalling the app keeps saved meetings.
+Version 0.3.5 changes the signing identity. After upgrading from 0.3.4 or older,
+grant Screen Recording and Microphone access again. Later releases reuse the same
+certificate so macOS can recognize the app across updates. Uninstalling the app
+keeps saved meetings.
 
 ## Record a meeting
 
