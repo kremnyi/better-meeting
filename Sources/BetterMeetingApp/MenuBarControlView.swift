@@ -111,6 +111,15 @@ struct MenuBarControlView: View {
 
             modelSetupStatus
 
+            if let message = model.bundleMessage {
+                HStack(alignment: .top) {
+                    Text(message).font(.callout).fixedSize(horizontal: false, vertical: true)
+                    Button { model.bundleMessage = nil } label: { Image(systemName: "xmark") }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Dismiss export status")
+                }
+            }
+
             Divider()
 
             historySection
@@ -195,6 +204,11 @@ struct MenuBarControlView: View {
                 settings: $model.speechSettings, modelSelectionDisabled: model.modelPreparationTask != nil
             )
             .onChange(of: model.speechSettings.model) { model.speechModelChanged() }
+            GridRow {
+                Text("After recording")
+                Toggle("Export bundle", isOn: $model.exportAfterRecording)
+                    .help("After saving the transcript, extract screenshots and screen text into an artifacts folder.")
+            }
             GridRow {
                 Text("Save to")
                 destinationButton
@@ -308,6 +322,7 @@ struct MenuBarControlView: View {
             }
             Button("Rename…") { model.renameMeeting(item) }
             Button("Re-transcribe…") { retranscribingMeeting = item }
+            Button("Export bundle…") { model.exportBundle(item) }
         }
     }
 
@@ -395,9 +410,9 @@ struct MenuBarControlView: View {
                 .tint(.signalCoral)
                 .accessibilityLabel(model.statusText)
 
-            Button("Cancel transcription", action: model.cancelTranscription)
+            Button(model.isExportingBundle ? "Cancel export" : "Cancel transcription", action: model.cancelTranscription)
                 .disabled(!model.canCancelTranscription)
-                .help("Keeps the recording and completed language passes so you can resume later")
+                .help(model.isExportingBundle ? "Keeps the transcript and previous export bundle" : "Keeps the recording and completed language passes so you can resume later")
         }
     }
 

@@ -14,6 +14,9 @@ Tests cover meeting recovery, audio exports, saved preferences, capture presets,
 automatic titles, multilingual merging, and per-language cache recovery.
 They also cover cancellation, vocabulary and language settings, safe transcript
 replacement, stereo audio meters, background model setup, and stable history search layout.
+Model and decoding checks cover saved settings and cache invalidation. Screen tests
+create a two-slide video and run native frame extraction and Vision OCR. Bundle
+checks cover language shares, manual edits, replacement, and cancellation recovery.
 GitHub Actions runs the same checks and keeps any macOS
 crash reports when a check fails.
 
@@ -45,9 +48,17 @@ to the audio and uses the model under `.build/model-check`:
 BETTER_MEETING_TRANSCRIPTION_CHECK=/path/to/mixed.wav swift test --filter testRealMultilingualRecording
 ```
 
+To check model switching through Small, Turbo, Large v3, and back to Small, use
+disposable English audio containing the word "pricing". This downloads any missing
+models into `.build/model-check` and writes pass caches beside the audio:
+
+```bash
+BETTER_MEETING_MODEL_SWITCH_CHECK=/path/to/pricing.wav swift test --filter testActualModelSwitching
+```
+
 With the same environment variable, `--filter testTurboSilenceLimitation` records
 the turbo model's known silence hallucination as an expected failure. Keep the
-original confidence thresholds; do not tune them just to pass a silent fixture.
+default confidence thresholds; do not tune them just to pass a silent fixture.
 
 To update the README screenshot with fictional meetings:
 

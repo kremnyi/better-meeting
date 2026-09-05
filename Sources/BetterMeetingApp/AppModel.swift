@@ -20,9 +20,13 @@ enum ProcessingPhase: Equatable {
     case loadingModel
     case transcribing
     case writingFiles
+    case extractingScreens
+    case exportingBundle
 
     var stepText: String {
-        "Step \(stepNumber) of 5"
+        if self == .extractingScreens { return "Step 1 of 2" }
+        if self == .exportingBundle { return "Step 2 of 2" }
+        return "Step \(stepNumber) of 5"
     }
 
     var statusText: String {
@@ -34,6 +38,8 @@ enum ProcessingPhase: Equatable {
         case .loadingModel: "Loading the speech model…"
         case .transcribing: "Transcribing on this Mac…"
         case .writingFiles: "Writing transcript.md…"
+        case .extractingScreens: "Extracting screenshots and screen text…"
+        case .exportingBundle: "Writing the export bundle…"
         }
     }
 
@@ -44,6 +50,8 @@ enum ProcessingPhase: Equatable {
         case .preparingModel, .downloadingModel, .loadingModel: 3
         case .transcribing: 4
         case .writingFiles: 5
+        case .extractingScreens: 1
+        case .exportingBundle: 2
         }
     }
 }
@@ -98,6 +106,10 @@ final class AppModel: ObservableObject {
         didSet { defaults.set(candidateLanguages, forKey: "candidateLanguages") }
     }
 
+    @Published var bundleMessage: String?
+    @Published var exportAfterRecording: Bool {
+        didSet { defaults.set(exportAfterRecording, forKey: "exportAfterRecording") }
+    }
     @Published var speechSettings: SpeechSettings {
         didSet { defaults.set(try? JSONEncoder().encode(speechSettings), forKey: "speechSettings") }
     }
@@ -140,6 +152,7 @@ final class AppModel: ObservableObject {
         transcriptionLanguage = TranscriptionLanguage(rawValue: defaults.string(forKey: "transcriptionLanguage") ?? "") ?? .auto
         transcriptionHints = defaults.string(forKey: "transcriptionHints") ?? ""
         candidateLanguages = TranscriptionLanguage.candidates(from: defaults.stringArray(forKey: "candidateLanguages") ?? [])
+        exportAfterRecording = defaults.bool(forKey: "exportAfterRecording")
         speechSettings = defaults.data(forKey: "speechSettings")
             .flatMap { try? JSONDecoder().decode(SpeechSettings.self, from: $0) } ?? SpeechSettings()
         if (try? speechSettings.validate()) == nil { speechSettings = SpeechSettings() }
@@ -288,6 +301,7 @@ final class AppModel: ObservableObject {
 
     func retryTranscription(_ item: MeetingHistoryItem, languages: [String]? = nil, hints: String? = nil, settings: SpeechSettings? = nil) {
         guard state == .idle || state == .failed else { return }
+        bundleMessage = nil
         activeFolder = item.folderURL
         completedFolder = nil
         recordedAt = item.recordedAt
@@ -316,8 +330,61 @@ final class AppModel: ObservableObject {
     func cancelTranscription() {
         guard canCancelTranscription else { return }
         cancellingTranscription = true
-        statusText = "Cancelling transcription…"
+        statusText = isExportingBundle ? "Cancelling export…" : "Cancelling transcription…"
         processingTask?.cancel()
+    }
+
+    var isExportingBundle: Bool {
+        processingPhase == .extractingScreens || processingPhase == .exportingBundle
+    }
+
+    func exportBundle(_ meeting: MeetingHistoryItem) {
+        guard state == .idle else { return }
+        state = .processing
+        elapsed = meeting.duration
+        bundleMessage = nil
+        errorMessage = nil
+        setProcessingPhase(.extractingScreens, fraction: 0)
+        processingTask = Task {
+            var succeeded = false
+            do {
+                let destination = try await createBundle(for: meeting)
+                completedFolder = meeting.folderURL
+                bundleMessage = "Export bundle saved in the meeting folder."
+                NSWorkspace.shared.open(destination)
+                succeeded = true
+            } catch {
+                bundleMessage = Task.isCancelled
+                    ? "Export cancelled. Existing meeting files and bundle are kept."
+                    : "Export failed: \(error.localizedDescription)"
+            }
+            state = .idle
+            elapsed = 0
+            processingPhase = nil
+            processingFraction = nil
+            processingTask = nil
+            cancellingTranscription = false
+            completeTermination(succeeded)
+        }
+    }
+
+    private func createBundle(for meeting: MeetingHistoryItem) async throws -> URL {
+        setProcessingPhase(.extractingScreens, fraction: 0)
+        let report: @Sendable (Double) -> Void = { [weak self] fraction in
+            Task { @MainActor [weak self] in
+                guard let self, self.isExportingBundle, !self.cancellingTranscription,
+                      fraction >= (self.processingFraction ?? 0) else { return }
+                self.setProcessingPhase(fraction < 1 ? .extractingScreens : .exportingBundle, fraction: fraction)
+            }
+        }
+        let work = Task.detached(priority: .utility) {
+            try await MeetingBundle.build(for: meeting, progress: report)
+        }
+        return try await withTaskCancellationHandler {
+            try await work.value
+        } onCancel: {
+            work.cancel()
+        }
     }
 
     func dismissFailure() {
@@ -342,7 +409,10 @@ final class AppModel: ObservableObject {
             return .terminateCancel
         }
         alert.messageText = state == .recording ? "Finish this recording and quit?" : "Quit when transcription finishes?"
-        alert.informativeText = "Better Meeting will stay open until the recording and transcript are saved."
+        if isExportingBundle { alert.messageText = "Quit when export finishes?" }
+        alert.informativeText = isExportingBundle
+            ? "Better Meeting will stay open until the export bundle is saved."
+            : "Better Meeting will stay open until the recording and transcript are saved."
         alert.addButton(withTitle: state == .recording ? "Finish and quit" : "Wait and quit")
         alert.addButton(withTitle: "Keep open")
         guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
@@ -485,6 +555,7 @@ final class AppModel: ObservableObject {
         activeFolder = nil
         recordedAt = nil
 
+        bundleMessage = nil
         let title = meetingTitle
         titleWasProvided = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         Task {
@@ -636,6 +707,16 @@ final class AppModel: ObservableObject {
             modelReady = LocalTranscriber.cachedModelFolder(model: speechSettings.model) != nil
             modelSetupError = nil
             refreshHistory()
+            if exportAfterRecording, let meeting = completedMeetings.first(where: { $0.folderURL == folder }) {
+                do {
+                    _ = try await createBundle(for: meeting)
+                    bundleMessage = "Export bundle saved in the meeting folder."
+                } catch {
+                    bundleMessage = Task.isCancelled
+                        ? "Transcript saved. Export cancelled; any previous bundle is kept."
+                        : "Transcript saved. Export failed: \(error.localizedDescription)"
+                }
+            }
             await MeetingNotifications.post(
                 title: transcriptionHistory.first(where: { $0.folderURL == folder })?.title ?? folder.lastPathComponent,
                 folder: folder, failed: false
@@ -650,7 +731,7 @@ final class AppModel: ObservableObject {
             activeFolder = nil
             self.recordedAt = nil
             meetingTitle = ""
-            completeTermination(true)
+            completeTermination(!Task.isCancelled)
         } catch {
             if let activeFolder {
                 completedFolder = activeFolder
@@ -694,7 +775,7 @@ final class AppModel: ObservableObject {
 
     private func updateTranscriptionProgress(_ progress: LocalTranscriptionProgress) {
         guard !cancellingTranscription else { return }
-        guard state == .processing else { return }
+        guard state == .processing, !isExportingBundle else { return }
 
         switch progress {
         case .preparingModel:

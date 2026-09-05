@@ -156,18 +156,61 @@ repeated capitalized nouns; recognition varies with the transcript and language
 support on the Mac. If no usable name and topic are found, the date-based name
 remains. Typed titles and titles from older folders are preserved.
 
+## Screenshots and export bundles
+
+Right-click a finished meeting and choose **Export bundle…**. The app reads the
+saved video, extracts screenshots and screen text, and opens `artifacts/` in Finder.
+Enable **Options → After recording → Export bundle** to run this after each
+transcript is saved. Automatic export is off by default.
+
+Screen extraction samples every two seconds, keeps screen changes and a frame
+at least every 90 seconds, and recognizes text with Apple's Vision framework.
+Repeated lines are removed. It exports up to 30 screenshots spread across the
+recording, preferring frames with more new text. If no text is recognized, it
+still selects screenshots. OCR uses supported languages from the transcript;
+small text, rapid changes, and unsupported languages can be missed.
+
+```text
+artifacts/
+├── transcript.md
+├── transcript.json
+├── timeline.md
+├── screen.json
+├── screens/
+├── screens_index.md
+├── languages.json
+├── PROMPT.md
+└── HOW-TO.md
+```
+
+The timeline combines speech, newly recognized screen text, screenshot links,
+and gaps of at least eight seconds between speech segments. `HOW-TO.md` reports
+language shares based on transcribed speech duration; `languages.json` stores
+the same durations and shares. Percentages exclude gaps and describe language
+labels, not recognition accuracy.
+
+The exported Markdown includes manual transcript edits. The timeline and language
+shares use the timed JSON segments, which manual Markdown edits do not change.
+Audio and video stay in the meeting folder. `PROMPT.md` is a short instruction
+for using the bundle with an external assistant; the app does not send it anywhere.
+
+Export runs locally with progress and cancellation. Regenerating replaces the
+previous bundle only when the new one is ready. Failure or cancellation preserves
+the transcript and any previous bundle. Automatic export failures appear in the
+menu without marking the saved transcript as failed.
+
 ## Privacy and model storage
 
-Recording, transcription, and automatic naming run on your Mac. The app does not
+Recording, transcription, screenshots, OCR, and automatic naming run on your Mac. The app does not
 upload meetings. The first speech-model setup downloads files from Hugging Face;
 after successful setup, transcription works offline. Removing or damaging those
 files can require another download.
 
 Model files live under `~/Documents/huggingface/models/argmaxinc/whisperkit-coreml/`.
 Tokenizer files may also be stored under
-`~/Documents/huggingface/models/openai/whisper-large-v3/`. WhisperKit calls the
+`~/Documents/huggingface/models/openai/` for each selected model. WhisperKit calls the
 turbo model `openai_whisper-large-v3-v20240930`; its model files total about 1.6 GB.
-Upgrading from `small` requires this download once. Existing model files are kept.
+Selecting a model requires its download once. Downloaded model files are kept when switching.
 The first load can take longer while Core ML prepares the model.
 
 ## Build from source
@@ -190,7 +233,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for tests, signing, and release steps.
 ## Limits
 
 - Captures one whole display; window-only and audio-only modes are not available.
-- One recording or transcription runs at a time.
+- One recording, transcription, or export runs at a time.
 - Transcripts have timestamps and language tags, but no speaker labels.
 - Whisper can produce text during silence; the no-speech filter does not catch every case.
 - File import, live captions, and meeting summaries are not included.
