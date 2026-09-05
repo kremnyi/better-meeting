@@ -98,6 +98,15 @@ final class AppModel: ObservableObject {
         didSet { defaults.set(candidateLanguages, forKey: "candidateLanguages") }
     }
 
+    @Published var speechSettings: SpeechSettings {
+        didSet { defaults.set(try? JSONEncoder().encode(speechSettings), forKey: "speechSettings") }
+    }
+
+    func speechModelChanged() {
+        modelReady = false
+        prepareSpeechModel()
+    }
+
     var transcriptionLanguages: [String] {
         transcriptionLanguage == .auto ? TranscriptionLanguage.candidates(from: candidateLanguages) : [transcriptionLanguage.rawValue]
     }
@@ -113,7 +122,7 @@ final class AppModel: ObservableObject {
     private(set) var processingTask: Task<Void, Never>?
     private(set) var historySearchTask: Task<Void, Never>?
     private var completedMeetings: [MeetingHistoryItem] = []
-    private var lastTranscriptionOptions: (languages: [String], hints: String)?
+    private var lastTranscriptionOptions: (languages: [String], hints: String, settings: SpeechSettings)?
 
     private var retryableMeeting: MeetingHistoryItem? {
         (unfinishedRecordings + completedMeetings).first { $0.folderURL == completedFolder }
@@ -131,6 +140,10 @@ final class AppModel: ObservableObject {
         transcriptionLanguage = TranscriptionLanguage(rawValue: defaults.string(forKey: "transcriptionLanguage") ?? "") ?? .auto
         transcriptionHints = defaults.string(forKey: "transcriptionHints") ?? ""
         candidateLanguages = TranscriptionLanguage.candidates(from: defaults.stringArray(forKey: "candidateLanguages") ?? [])
+        speechSettings = defaults.data(forKey: "speechSettings")
+            .flatMap { try? JSONDecoder().decode(SpeechSettings.self, from: $0) } ?? SpeechSettings()
+        if (try? speechSettings.validate()) == nil { speechSettings = SpeechSettings() }
+        modelReady = LocalTranscriber.cachedModelFolder(model: speechSettings.model) != nil
         recorder.onUnexpectedStop = { [weak self] error in
             self?.captureStoppedExternally(with: error)
         }
@@ -201,7 +214,7 @@ final class AppModel: ObservableObject {
         } else if state == .failed, privacyPermission == .screenRecording {
             restartApplication()
         } else if state == .failed, let item = retryableMeeting {
-            retryTranscription(item, languages: lastTranscriptionOptions?.languages, hints: lastTranscriptionOptions?.hints)
+            retryTranscription(item, languages: lastTranscriptionOptions?.languages, hints: lastTranscriptionOptions?.hints, settings: lastTranscriptionOptions?.settings)
         } else if state == .idle || state == .failed {
             startRecording()
         }
@@ -221,8 +234,9 @@ final class AppModel: ObservableObject {
 
     func prepareSpeechModel() {
         guard !modelReady, state == .idle || state == .recording else { return }
+        let selectedModel = speechSettings.model
         prepareSpeechModel { [transcriber] progress in
-            _ = try await transcriber.prepare(progressHandler: progress)
+            _ = try await transcriber.prepare(model: selectedModel, progressHandler: progress)
         }
     }
 
@@ -272,7 +286,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func retryTranscription(_ item: MeetingHistoryItem, languages: [String]? = nil, hints: String? = nil) {
+    func retryTranscription(_ item: MeetingHistoryItem, languages: [String]? = nil, hints: String? = nil, settings: SpeechSettings? = nil) {
         guard state == .idle || state == .failed else { return }
         activeFolder = item.folderURL
         completedFolder = nil
@@ -288,7 +302,8 @@ final class AppModel: ObservableObject {
             await MeetingNotifications.requestPermission()
             await finishRecording(
                 stopCapture: false, replacing: item.needsTranscription ? nil : item,
-                languages: languages, hints: hints
+                languages: languages, hints: hints,
+                settings: settings ?? MeetingArtifacts.speechSettings(in: item.folderURL)
             )
         }
     }
@@ -532,7 +547,7 @@ final class AppModel: ObservableObject {
 
     private func finishRecording(
         stopCapture: Bool, replacing: MeetingHistoryItem? = nil,
-        languages: [String]? = nil, hints: String? = nil
+        languages: [String]? = nil, hints: String? = nil, settings: SpeechSettings? = nil
     ) async {
         defer {
             processingTask = nil
@@ -540,7 +555,8 @@ final class AppModel: ObservableObject {
         }
         let languages = languages ?? transcriptionLanguages
         let hints = hints ?? transcriptionHints
-        lastTranscriptionOptions = (languages, hints)
+        let settings = settings ?? speechSettings
+        lastTranscriptionOptions = (languages, hints, settings)
         do {
             try Task.checkCancellation()
             guard var folder = activeFolder, let recordedAt else {
@@ -568,7 +584,7 @@ final class AppModel: ObservableObject {
             if replacing == nil {
                 try MeetingArtifacts.writeMetadata(
                     title: meetingTitle, recordedAt: recordedAt, duration: elapsed,
-                    titleWasProvided: titleWasProvided, to: folder
+                    titleWasProvided: titleWasProvided, speechSettings: settings, to: folder
                 )
             }
 
@@ -583,7 +599,7 @@ final class AppModel: ObservableObject {
                 try Task.checkCancellation()
             }
             let segments = try await transcriber.transcribe(
-                audioURL: audioURL, languages: languages, hints: hints
+                audioURL: audioURL, languages: languages, hints: hints, settings: settings
             ) { [weak self] progress in
                 Task { @MainActor [weak self] in
                     self?.updateTranscriptionProgress(progress)
@@ -603,7 +619,7 @@ final class AppModel: ObservableObject {
                 }
             }
             if let replacing {
-                try MeetingArtifacts.replaceTranscript(for: replacing, duration: elapsed, segments: segments)
+                try MeetingArtifacts.replaceTranscript(for: replacing, duration: elapsed, segments: segments, speechSettings: settings)
             } else {
                 try MeetingArtifacts.write(
                     title: meetingTitle,
@@ -611,12 +627,13 @@ final class AppModel: ObservableObject {
                     duration: elapsed,
                     segments: segments,
                     titleWasProvided: titleWasProvided,
+                    speechSettings: settings,
                     to: folder
                 )
             }
 
             completedFolder = folder
-            modelReady = LocalTranscriber.cachedModelFolder() != nil
+            modelReady = LocalTranscriber.cachedModelFolder(model: speechSettings.model) != nil
             modelSetupError = nil
             refreshHistory()
             await MeetingNotifications.post(

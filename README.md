@@ -72,6 +72,18 @@ and never upscales smaller displays. Frame rate sets a maximum of 5, 10, or
 30 fps. Higher settings can increase file size and processing load; macOS manages
 compression bitrate. These settings do not affect audio or transcription.
 
+**Model** offers multilingual Small, Large v3 Turbo (default), and Large v3.
+Small uses less memory; Large v3 takes longer and uses more memory. Each model
+is downloaded once and then works offline. Changing models releases the previous
+model before loading the next one. The picker waits for active setup to finish.
+
+**Decoding → Advanced…** exposes temperature, fallback attempts and temperature
+increase, no-speech and log-probability thresholds, and the repetition threshold.
+Defaults match the existing transcription behavior. Reset restores decoding
+defaults without changing the selected model. Model and decoding settings are
+saved with each transcript; retries reuse them and changed settings invalidate
+cached passes. These are WhisperKit controls, not arbitrary Python Whisper flags.
+
 **Language** defaults to **Auto**, with Ukrainian, Russian, and English as candidates.
 Following the original project's strategy, Auto transcribes the whole recording
 in each candidate language separately, then merges segments by confidence and filters likely silence

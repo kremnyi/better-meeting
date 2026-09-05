@@ -17,6 +17,7 @@ struct MeetingManifest: Codable {
     let segmentCount: Int
     var transcriptionComplete: Bool? = nil
     var titleWasProvided: Bool? = nil
+    var speechSettings: SpeechSettings? = nil
 }
 
 struct MeetingHistoryItem: Identifiable, Equatable, Sendable {
@@ -105,6 +106,7 @@ enum MeetingArtifacts {
         duration: TimeInterval,
         segments: [TranscriptSegment],
         titleWasProvided: Bool? = nil,
+        speechSettings: SpeechSettings? = nil,
         to folder: URL
     ) throws {
         let resolvedTitle = resolvedTitle(title, recordedAt: recordedAt)
@@ -137,6 +139,7 @@ enum MeetingArtifacts {
             segmentCount: segments.count,
             transcriptionComplete: true,
             titleWasProvided: titleWasProvided ?? !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            speechSettings: speechSettings,
             to: folder
         )
     }
@@ -148,6 +151,7 @@ enum MeetingArtifacts {
         segmentCount: Int = 0,
         transcriptionComplete: Bool = false,
         titleWasProvided: Bool? = nil,
+        speechSettings: SpeechSettings? = nil,
         to folder: URL
     ) throws {
         let manifest = MeetingManifest(
@@ -159,7 +163,8 @@ enum MeetingArtifacts {
             transcript: "transcript.md",
             segmentCount: segmentCount,
             transcriptionComplete: transcriptionComplete,
-            titleWasProvided: titleWasProvided ?? !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            titleWasProvided: titleWasProvided ?? !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            speechSettings: speechSettings
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -172,7 +177,8 @@ enum MeetingArtifacts {
     }
 
     static func replaceTranscript(
-        for meeting: MeetingHistoryItem, duration: TimeInterval, segments: [TranscriptSegment]
+        for meeting: MeetingHistoryItem, duration: TimeInterval, segments: [TranscriptSegment],
+        speechSettings: SpeechSettings? = nil
     ) throws {
         let fm = FileManager.default
         let names = ["transcript.md", "transcript.json", "metadata.json"]
@@ -181,7 +187,7 @@ enum MeetingArtifacts {
         try fm.createDirectory(at: staging, withIntermediateDirectories: false)
         do {
             try write(title: meeting.title, recordedAt: meeting.recordedAt, duration: duration,
-                      segments: segments, titleWasProvided: meeting.titleWasProvided, to: staging)
+                      segments: segments, titleWasProvided: meeting.titleWasProvided, speechSettings: speechSettings, to: staging)
             // Keep durable backups until all replacements succeed, including across an interrupted write.
             for (name, original) in zip(names, originals) {
                 try original.write(to: staging.appendingPathComponent("previous-" + name), options: .atomic)
@@ -209,6 +215,13 @@ enum MeetingArtifacts {
             throw error
         }
         try? fm.removeItem(at: staging)
+    }
+
+    static func speechSettings(in folder: URL) -> SpeechSettings? {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let data = try? Data(contentsOf: folder.appendingPathComponent("metadata.json")) else { return nil }
+        return (try? decoder.decode(MeetingManifest.self, from: data))?.speechSettings
     }
 
     static func meetings(in root: URL) -> [MeetingHistoryItem] {

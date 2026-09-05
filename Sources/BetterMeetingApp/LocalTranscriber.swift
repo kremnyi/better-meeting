@@ -11,19 +11,18 @@ enum LocalTranscriptionProgress: Sendable {
 
 actor LocalTranscriber {
     private var whisper: WhisperKit?
+    private var loadedModel: SpeechModel?
     private let downloadBase: URL
 
     static let defaultDownloadBase = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("huggingface")
-    // WhisperKit's name for OpenAI large-v3-turbo (the four-layer decoder).
-    static let modelVariant = "openai_whisper-large-v3-v20240930"
 
     init(downloadBase: URL = defaultDownloadBase) {
         self.downloadBase = downloadBase
     }
 
-    static func cachedModelFolder(in downloadBase: URL = defaultDownloadBase) -> URL? {
-        let folder = downloadBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml/\(modelVariant)")
+    static func cachedModelFolder(in downloadBase: URL = defaultDownloadBase, model: SpeechModel = .turbo) -> URL? {
+        let folder = downloadBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml/\(model.rawValue)")
         return hasModelFiles(in: folder) ? folder : nil
     }
 
@@ -40,17 +39,22 @@ actor LocalTranscriber {
 
     @discardableResult
     func prepare(
+        model: SpeechModel = .turbo,
         progressHandler: @escaping @Sendable (LocalTranscriptionProgress) -> Void
     ) async throws -> WhisperKit {
         try Task.checkCancellation()
-        if let whisper { return whisper }
+        if let whisper, loadedModel == model { return whisper }
+        if let whisper { await whisper.unloadModels() }
+        whisper = nil
+        loadedModel = nil
+        try Task.checkCancellation()
         progressHandler(.preparingModel)
         let modelFolder: URL
-        if let cached = Self.cachedModelFolder(in: downloadBase) {
+        if let cached = Self.cachedModelFolder(in: downloadBase, model: model) {
             modelFolder = cached
         } else {
             modelFolder = try await WhisperKit.download(
-                variant: Self.modelVariant,
+                variant: model.rawValue,
                 downloadBase: downloadBase,
                 progressCallback: { progress in
                     let fraction = progress.fractionCompleted
@@ -70,6 +74,7 @@ actor LocalTranscriber {
             download: false
         )
         whisper = loaded
+        loadedModel = model
         try Task.checkCancellation()
         return loaded
     }
@@ -78,8 +83,10 @@ actor LocalTranscriber {
         audioURL: URL,
         languages: [String] = ["uk", "ru", "en"],
         hints: String = "",
+        settings: SpeechSettings = SpeechSettings(),
         progressHandler: @escaping @Sendable (LocalTranscriptionProgress) -> Void
     ) async throws -> [TranscriptSegment] {
+        try settings.validate()
         let audioFile = try AVAudioFile(
             forReading: audioURL,
             commonFormat: .pcmFormatFloat32,
@@ -88,9 +95,9 @@ actor LocalTranscriber {
         let duration = Double(audioFile.length) / audioFile.fileFormat.sampleRate
 
         return try await TranscriptionPasses.run(
-            audioURL: audioURL, languages: languages, hints: hints, progressHandler: progressHandler
+            audioURL: audioURL, languages: languages, hints: hints, settings: settings, progressHandler: progressHandler
         ) { options, index in
-            let whisper = try await self.prepare(progressHandler: progressHandler)
+            let whisper = try await self.prepare(model: settings.model, progressHandler: progressHandler)
             var options = options
             let hints = hints.trimmingCharacters(in: .whitespacesAndNewlines)
             if !hints.isEmpty {

@@ -55,17 +55,16 @@ enum TranscriptionPasses {
     }
 
     static func options(language: String) -> DecodingOptions {
-        DecodingOptions(
-            language: language, detectLanguage: false, skipSpecialTokens: true,
-            wordTimestamps: false, concurrentWorkerCount: 1, chunkingStrategy: .vad
-        )
+        SpeechSettings().decodingOptions(language: language)
     }
 
     static func run(
         audioURL: URL, languages: [String], hints: String = "",
+        settings: SpeechSettings = SpeechSettings(),
         progressHandler: @Sendable (LocalTranscriptionProgress) -> Void,
         transcribe: (DecodingOptions, Int) async throws -> [ScoredSegment]
     ) async throws -> [TranscriptSegment] {
+        try settings.validate()
         guard !languages.isEmpty, languages.allSatisfy(Constants.languageCodes.contains),
               Set(languages).count == languages.count else { throw TranscriptionError.invalidLanguages }
         // URL resource values can be stale when an existing audio file is replaced.
@@ -78,12 +77,12 @@ enum TranscriptionPasses {
         var segments: [ScoredSegment] = []
         for (index, language) in languages.enumerated() {
             try Task.checkCancellation()
-            let options = options(language: language)
+            let options = settings.decodingOptions(language: language)
             let encodedOptions = try encoder.encode(options)
             let cacheURL = audioURL.deletingLastPathComponent().appendingPathComponent("pass_\(language).json")
             let cache = (try? Data(contentsOf: cacheURL)).flatMap { try? JSONDecoder().decode(Cache.self, from: $0) }
             let pass: [ScoredSegment]
-            if let cache, cache.model == LocalTranscriber.modelVariant,
+            if let cache, cache.model == settings.model.rawValue,
                cache.backend == backend, cache.options == encodedOptions,
                (cache.hints ?? "") == hints,
                cache.audioSize == audioSize, cache.audioModified == audioModified {
@@ -92,7 +91,7 @@ enum TranscriptionPasses {
                 pass = try await transcribe(options, index)
                 try Task.checkCancellation()
                 let cache = Cache(
-                    model: LocalTranscriber.modelVariant, backend: backend,
+                    model: settings.model.rawValue, backend: backend,
                     options: encodedOptions, hints: hints.isEmpty ? nil : hints, audioSize: audioSize,
                     audioModified: audioModified, segments: pass
                 )
@@ -104,13 +103,13 @@ enum TranscriptionPasses {
                 language: language, pass: index + 1, total: languages.count
             ))
         }
-        return (languages.count > 1 ? merge(segments) : segments.sorted { $0.start < $1.start }).map(\.transcript)
+        return (languages.count > 1 ? merge(segments, noSpeechThreshold: settings.noSpeechThreshold, logProbThreshold: settings.logProbThreshold) : segments.sorted { $0.start < $1.start }).map(\.transcript)
     }
 
     // Port of GivenFLY/better-meeting's asr.py _merge at e9b524d.
     // ponytail: upstream's quadratic scan; sweep the intervals if long meetings make merging slow.
-    static func merge(_ passes: [ScoredSegment]) -> [ScoredSegment] {
-        let segments = passes.filter { !($0.nospeech > 0.6 && $0.score < -1) }
+    static func merge(_ passes: [ScoredSegment], noSpeechThreshold: Float = 0.6, logProbThreshold: Float = -1) -> [ScoredSegment] {
+        let segments = passes.filter { !($0.nospeech > noSpeechThreshold && $0.score < logProbThreshold) }
             .sorted { $0.start < $1.start }
         guard var cursor = segments.first?.start else { return [] }
         var merged: [ScoredSegment] = []

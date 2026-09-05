@@ -55,9 +55,10 @@ struct MenuBarControlView: View {
         .sheet(item: $retranscribingMeeting) { meeting in
             RetranscriptionView(
                 meeting: meeting, language: model.transcriptionLanguage,
-                candidates: model.candidateLanguages, hints: model.transcriptionHints
-            ) { languages, hints in
-                model.retryTranscription(meeting, languages: languages, hints: hints)
+                candidates: model.candidateLanguages, hints: model.transcriptionHints,
+                settings: MeetingArtifacts.speechSettings(in: meeting.folderURL) ?? model.speechSettings
+            ) { languages, hints, settings in
+                model.retryTranscription(meeting, languages: languages, hints: hints, settings: settings)
             }
         }
         .onAppear {
@@ -190,8 +191,10 @@ struct MenuBarControlView: View {
             }
             TranscriptionOptionsView(
                 language: $model.transcriptionLanguage,
-                candidates: $model.candidateLanguages, hints: $model.transcriptionHints
+                candidates: $model.candidateLanguages, hints: $model.transcriptionHints,
+                settings: $model.speechSettings, modelSelectionDisabled: model.modelPreparationTask != nil
             )
+            .onChange(of: model.speechSettings.model) { model.speechModelChanged() }
             GridRow {
                 Text("Save to")
                 destinationButton
