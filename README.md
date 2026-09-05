@@ -8,14 +8,14 @@ display and microphone in **Capture options**, then start recording. After you
 stop, the app creates a timestamped transcript on your Mac. Open completed
 meeting folders with the Finder button in the menu bar.
 
-**Available from source for Apple Silicon Macs running macOS 15 or newer.**
-A signed, notarized download is not available yet.
+**For Apple Silicon Macs running macOS 15 or newer.** Homebrew and ZIP releases
+are ad-hoc signed, without an Apple Developer ID or notarization.
 
 <img src="docs/menu-bar.png" alt="Better Meeting menu with capture options and Finder buttons for recent meetings" width="304">
 
 The app's menu bar view, rendered with fictional meetings.
 
-[Features](#features) · [Install](#install-from-source) · [Permissions](#permissions-and-privacy) · [Development](#development) · [Project origin](#project-origin)
+[Features](#features) · [Install](#install-with-homebrew) · [Permissions](#permissions-and-privacy) · [Development](#development) · [Project origin](#project-origin)
 
 ## Features
 
@@ -85,8 +85,39 @@ interrupted before macOS finishes writing the video may not be recoverable.
 
 - macOS 15 or newer
 - Apple Silicon Mac
-- Xcode 16 or newer to build from source
+- Xcode 16 or newer only when building from source
 - Internet access for the first Whisper model download
+
+## Install with Homebrew
+
+This repository also serves as the app's Homebrew tap:
+
+```bash
+brew tap kremnyi/better-meeting https://github.com/kremnyi/better-meeting
+brew install --cask kremnyi/better-meeting/better-meeting
+open -a "Better Meeting"
+```
+
+The cask downloads a versioned Apple Silicon app from
+[GitHub Releases](https://github.com/kremnyi/better-meeting/releases) and verifies
+its SHA-256 checksum. It uses the same ad-hoc signing as a local build. A ZIP
+download is also available there; extract it and move the app to `/Applications`.
+
+If macOS blocks the first launch, try opening the app, then use **System Settings
+→ Privacy & Security → Open Anyway** for Better Meeting. See
+[Apple's instructions](https://support.apple.com/102445). The installer keeps
+macOS security checks enabled. Managed Macs may not allow this exception.
+
+To update, finish any active recording and quit the app, then run:
+
+```bash
+brew update
+brew upgrade --cask kremnyi/better-meeting/better-meeting
+```
+
+Ad-hoc signatures change with new builds, so macOS may require recording
+permissions to be granted again after an update. Homebrew uninstall removes the
+app; saved meeting folders remain on disk.
 
 ## Install from source
 
@@ -141,7 +172,7 @@ Automatic meeting titles run entirely through Apple's on-device language tagging
 After successful setup, cached files support offline transcription across app
 restarts. Setup may need internet again if those files are removed or damaged.
 
-Development builds are ad-hoc signed by default. Because macOS ties recording
+Release ZIPs and default source builds are ad-hoc signed. Because macOS ties recording
 permission to an app's signature, permissions may need to be granted again after
 each ad-hoc rebuild. Use a stable keychain identity to avoid that:
 
