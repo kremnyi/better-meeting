@@ -14,17 +14,30 @@ struct ScoredSegment: Codable, Equatable, Sendable {
     }
 }
 
-enum TranscriptionLanguage: String, CaseIterable {
-    case auto, uk, ru, en
+struct TranscriptionLanguage: RawRepresentable, Hashable {
+    let rawValue: String
 
-    var languages: [String] { self == .auto ? ["uk", "ru", "en"] : [rawValue] }
+    init?(rawValue: String) {
+        guard rawValue == "auto" || Constants.languageCodes.contains(rawValue) else { return nil }
+        self.rawValue = rawValue
+    }
+
+    static let auto = Self(rawValue: "auto")!
+    static let uk = Self(rawValue: "uk")!
+    static let defaultCandidates = ["uk", "ru", "en"]
+    static let allCases = [auto] + Constants.languageCodes.compactMap(Self.init(rawValue:))
+        .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
+
     var label: String {
-        switch self {
-        case .auto: "Auto (UK, RU, EN)"
-        case .uk: "Ukrainian"
-        case .ru: "Russian"
-        case .en: "English"
+        self == .auto ? "Auto" : (Locale.current.localizedString(forLanguageCode: rawValue) ?? rawValue).capitalized
+    }
+
+    static func candidates(from saved: [String]) -> [String] {
+        var unique: [String] = []
+        for code in saved where Constants.languageCodes.contains(code) && !unique.contains(code) {
+            unique.append(code)
         }
+        return unique.isEmpty ? defaultCandidates : unique
     }
 }
 
@@ -53,6 +66,8 @@ enum TranscriptionPasses {
         progressHandler: @Sendable (LocalTranscriptionProgress) -> Void,
         transcribe: (DecodingOptions, Int) async throws -> [ScoredSegment]
     ) async throws -> [TranscriptSegment] {
+        guard !languages.isEmpty, languages.allSatisfy(Constants.languageCodes.contains),
+              Set(languages).count == languages.count else { throw TranscriptionError.invalidLanguages }
         // URL resource values can be stale when an existing audio file is replaced.
         let attributes = try FileManager.default.attributesOfItem(atPath: audioURL.path)
         let hints = hints.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -116,4 +131,10 @@ enum TranscriptionPasses {
         }
         return merged
     }
+}
+
+enum TranscriptionError: LocalizedError {
+    case invalidLanguages
+
+    var errorDescription: String? { "Choose at least one supported language, without duplicates." }
 }

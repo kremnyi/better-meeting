@@ -166,7 +166,25 @@ struct MenuBarControlView: View {
                 }
                 .labelsHidden()
                 .frame(maxWidth: .infinity)
-                .help("Auto transcribes Ukrainian, Russian, and English separately, then merges by confidence")
+                .help("Auto runs each candidate language separately, then merges by confidence")
+            }
+            if model.transcriptionLanguage == .auto {
+                GridRow {
+                    Text("Candidates")
+                    Menu(model.candidateLanguages.joined(separator: ", ").uppercased()) {
+                        ForEach(TranscriptionLanguage.allCases.filter { $0 != .auto }, id: \.self) { language in
+                            Toggle(language.label, isOn: Binding(
+                                get: { model.candidateLanguages.contains(language.rawValue) },
+                                set: { selected in
+                                    if selected { model.candidateLanguages.append(language.rawValue) }
+                                    else { model.candidateLanguages.removeAll { $0 == language.rawValue } }
+                                }
+                            ))
+                            .disabled(model.candidateLanguages == [language.rawValue])
+                        }
+                    }
+                    .help("One pass per selected language. Fewer languages finish sooner.")
+                }
             }
             GridRow {
                 Text("Vocabulary")

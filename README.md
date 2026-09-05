@@ -58,11 +58,15 @@ and never upscales smaller displays. Frame rate sets a maximum of 5, 10, or
 30 fps. Higher settings can increase file size and processing load; macOS manages
 compression bitrate. These settings do not affect audio or transcription.
 
-**Language** defaults to **Auto (UK, RU, EN)**. Following the original project's
+**Language** defaults to **Auto**, with Ukrainian, Russian, and English as candidates.
+Following the original project's
 strategy, Auto transcribes the whole recording in Ukrainian, Russian, and English
 separately, then merges segments by confidence and filters likely silence
 hallucinations. Choose one language for a single pass. The app remembers your choice.
 Three languages require three passes; progress shows the current language and pass.
+Change **Candidates** to match the languages you expect. Each selected language
+adds one pass; at least one is required. Single-language mode supports any language
+listed by WhisperKit.
 
 Use **Vocabulary** in Options for names, companies, and technical terms separated
 by commas. These optional hints use Whisper's existing prompt support and stay on

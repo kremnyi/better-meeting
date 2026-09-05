@@ -144,11 +144,27 @@ final class TranscriptionPassTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(FileManager.default.temporaryDirectory.appendingPathComponent(suite), forKey: "outputFolder")
         let model = AppModel(defaults: defaults)
-        XCTAssertEqual(model.transcriptionLanguage.languages, ["uk", "ru", "en"])
+        XCTAssertEqual(model.transcriptionLanguages, ["uk", "ru", "en"])
+        model.candidateLanguages = ["pl", "en"]
+        XCTAssertEqual(AppModel(defaults: defaults).transcriptionLanguages, ["pl", "en"])
         model.transcriptionLanguage = .uk
         model.transcriptionHints = "Anna, Approck, WhisperKit"
-        XCTAssertEqual(AppModel(defaults: defaults).transcriptionLanguage.languages, ["uk"])
+        XCTAssertEqual(AppModel(defaults: defaults).transcriptionLanguages, ["uk"])
         XCTAssertEqual(AppModel(defaults: defaults).transcriptionHints, "Anna, Approck, WhisperKit")
+    }
+
+    func testCandidateLanguagesRejectUnsupportedAndDuplicateCodes() async throws {
+        XCTAssertEqual(TranscriptionLanguage.candidates(from: ["pl", "pl", "en", "../bad"]), ["pl", "en"])
+        XCTAssertEqual(TranscriptionLanguage.candidates(from: []), ["uk", "ru", "en"])
+        for codes in [[], ["../bad"], ["en", "en"]] {
+            do {
+                _ = try await TranscriptionPasses.run(audioURL: URL(fileURLWithPath: "/missing"), languages: codes, progressHandler: { _ in }) { _, _ in
+                    XCTFail("Invalid codes must never reach inference or cache paths")
+                    return []
+                }
+                XCTFail("Expected invalid languages")
+            } catch TranscriptionError.invalidLanguages {}
+        }
     }
 
     func testVocabularyChangesInvalidatePassCache() async throws {
