@@ -198,6 +198,19 @@ final class TranscriptionPassTests: XCTestCase {
             let pass = try XCTUnwrap(cache["segments"] as? [[String: Any]])
             XCTAssertTrue(pass.contains { ($0["nospeech"] as? Double ?? 0) > 0 }, "No-speech probabilities must be computed, not hardcoded")
         }
+        let audio = URL(fileURLWithPath: path)
+        let hinted = try await transcriber.transcribe(audioURL: audio, languages: ["en"], hints: "Anna, Michael, pricing, release schedule") { _ in }
+        XCTAssertFalse(hinted.isEmpty)
+        XCTAssertTrue(hinted.allSatisfy { $0.language == "en" && !$0.text.contains("<|") })
+        let pass = audio.deletingLastPathComponent().appendingPathComponent("pass_en.json")
+        let completedPass = try Data(contentsOf: pass)
+        let work = Task {
+            try await transcriber.transcribe(audioURL: audio, languages: ["en"], hints: "Different hints force another pass") { _ in }
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        work.cancel()
+        if case .success = await work.result { XCTFail("Cancelled inference must not return a transcript") }
+        XCTAssertEqual(try Data(contentsOf: pass), completedPass, "Cancellation must preserve the last completed pass")
     }
 
     func testTurboSilenceLimitation() async throws {
