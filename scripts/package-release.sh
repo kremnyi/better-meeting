@@ -8,9 +8,12 @@ if [[ $(uname -m) != arm64 ]]; then
     exit 1
 fi
 
-BETTER_MEETING_SIGNING_IDENTITY=- ./scripts/build-app.sh
+signing_identity=B7DD515B85782011633AF2ACC25BFBDA42576F6E
+BETTER_MEETING_SIGNING_IDENTITY="$signing_identity" ./scripts/build-app.sh
 app_dir="dist/Better Meeting.app"
-codesign --verify --deep --strict "$app_dir"
+codesign --verify --deep --strict \
+    -R "=identifier \"com.kremnyi.bettermeeting\" and certificate leaf = H\"$signing_identity\"" \
+    "$app_dir"
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_dir/Contents/Info.plist")
 archive="Better-Meeting-${version}-arm64.zip"
 ditto -c -k --sequesterRsrc --keepParent "$app_dir" "dist/$archive"

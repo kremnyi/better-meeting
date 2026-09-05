@@ -17,14 +17,15 @@ replacement, stereo audio meters, background model setup, and stable history sea
 GitHub Actions runs the same checks and keeps any macOS
 crash reports when a check fails.
 
-Use `dist/Better Meeting.app` to check recording permissions. macOS associates
-permission with the signed app. To keep that identity across local builds, use
-an existing keychain identity:
+Use `dist/Better Meeting.app` to check recording permissions. Local builds and CI
+default to ad-hoc signing. On the release Mac, reuse the persistent identity:
 
 ```bash
-BETTER_MEETING_SIGNING_IDENTITY="Apple Development: Your Name (TEAMID)" \
+BETTER_MEETING_SIGNING_IDENTITY="Better Meeting Release Signing" \
     ./scripts/build-app.sh
 ```
+
+Other contributors can use their own persistent code-signing identity for local builds.
 
 ## Optional checks
 
@@ -64,11 +65,18 @@ BETTER_MEETING_PREVIEW_PATH="$PWD/docs/menu-bar.png" swift test --filter testRen
 ## Publish a Homebrew release
 
 This repository is also the tap. `Casks/better-meeting.rb` points to a versioned
-GitHub release; no separate repository or signing certificate is needed.
+GitHub release. Releases use the **Better Meeting Release Signing** self-signed
+identity in the maintainer's login Keychain. `package-release.sh` pins its public
+certificate fingerprint and fails if the private key is unavailable; it never
+falls back to ad-hoc signing.
+
+Keep an encrypted backup of this identity using Keychain Access, outside the
+repository. Recreating the certificate changes the app's identity and requires
+users to grant permissions again. Do not commit or upload the private key.
 
 1. Update `CFBundleShortVersionString` and increment `CFBundleVersion` in `App/Info.plist`.
-2. Run `swift test`, then `./scripts/package-release.sh`. This creates an
-   ad-hoc-signed ZIP and `.sha256` file in `dist/`.
+2. Run `swift test`, then `./scripts/package-release.sh`. This creates a
+   self-signed ZIP and `.sha256` file in `dist/`.
 3. Set the cask's `version` and `sha256` to match that archive. Run
    `ruby -c Casks/better-meeting.rb` and commit the release changes together.
 4. Tag that commit as `v<version>` and push the tag. Wait for GitHub Actions
@@ -83,6 +91,6 @@ GitHub release; no separate repository or signing certificate is needed.
 Keep the exact archive used for the checksum; rebuilding can change it. Never
 replace a published version's archive. Publish a new version instead.
 
-Release notes must explain ad-hoc signing, first-launch approval, and recording
-permissions after updates. Keep checksum verification and platform requirements
-in the cask. Install hooks must not disable security checks or remove meetings.
+Release notes must explain self-signing, first-launch approval, and the permission
+reset when upgrading from 0.3.4 or older. Keep checksum verification and platform
+requirements in the cask. Install hooks must not disable security checks or remove meetings.

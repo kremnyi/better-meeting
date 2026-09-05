@@ -14,6 +14,8 @@ xcuserdata/
 .env
 *.secret
 *.key
+*.p12
+*.pfx
 
 # macOS and editors
 .DS_Store
