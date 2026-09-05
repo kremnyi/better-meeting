@@ -26,6 +26,25 @@ final class SpeechSettingsTests: XCTestCase {
         XCTAssertTrue(TranscriptionPasses.merge([segment], noSpeechThreshold: 0.4).isEmpty)
     }
 
+    func testActualModelSwitching() async throws {
+        guard let path = ProcessInfo.processInfo.environment["BETTER_MEETING_MODEL_SWITCH_CHECK"] else {
+            throw XCTSkip("Set BETTER_MEETING_MODEL_SWITCH_CHECK to disposable English audio to check all three models")
+        }
+        let cache = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(".build/model-check")
+        let transcriber = LocalTranscriber(downloadBase: cache)
+        let audio = URL(fileURLWithPath: path)
+        for model in SpeechModel.allCases + [.small] {
+            var settings = SpeechSettings()
+            settings.model = model
+            settings.fallbackCount = 0
+            let segments = try await transcriber.transcribe(audioURL: audio, languages: ["en"], hints: "Anna, pricing, release", settings: settings) { _ in }
+            let text = segments.map(\.text).joined(separator: " ").lowercased()
+            XCTAssertTrue(text.contains("pricing"), "\(model.label): \(text)")
+            XCTAssertTrue(segments.allSatisfy { $0.language == "en" && $0.end > $0.start })
+            XCTAssertNotNil(LocalTranscriber.cachedModelFolder(in: cache, model: model))
+        }
+    }
+
     @MainActor
     func testSettingsPersistWithDefaultsAndMeeting() throws {
         let suite = "SpeechSettings.\(UUID().uuidString)"
