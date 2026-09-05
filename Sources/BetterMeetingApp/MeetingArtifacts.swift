@@ -283,6 +283,21 @@ enum MeetingArtifacts {
         return lines.joined(separator: "\n")
     }
 
+    // ponytail: scan saved Markdown on demand; add an index if large libraries make search slow.
+    static func search(_ meetings: [MeetingHistoryItem], query: String) -> [MeetingHistoryItem] {
+        var matches: [MeetingHistoryItem] = []
+        for meeting in meetings {
+            guard !Task.isCancelled else { return [] }
+            if meeting.title.localizedStandardContains(query) {
+                matches.append(meeting)
+            } else if let transcript = try? String(contentsOf: meeting.folderURL.appendingPathComponent("transcript.md"), encoding: .utf8),
+                      transcript.localizedStandardContains(query) {
+                matches.append(meeting)
+            }
+        }
+        return matches
+    }
+
     static func sanitizedTitle(_ title: String) -> String {
         let invalid = CharacterSet(charactersIn: "/:\n\r\t")
         let parts = title.components(separatedBy: invalid)

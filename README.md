@@ -63,9 +63,8 @@ and never upscales smaller displays. Frame rate sets a maximum of 5, 10, or
 compression bitrate. These settings do not affect audio or transcription.
 
 **Language** defaults to **Auto**, with Ukrainian, Russian, and English as candidates.
-Following the original project's
-strategy, Auto transcribes the whole recording in Ukrainian, Russian, and English
-separately, then merges segments by confidence and filters likely silence
+Following the original project's strategy, Auto transcribes the whole recording
+in each candidate language separately, then merges segments by confidence and filters likely silence
 hallucinations. Choose one language for a single pass. The app remembers your choice.
 Three languages require three passes; progress shows the current language and pass.
 Change **Candidates** to match the languages you expect. Each selected language
@@ -76,7 +75,10 @@ Use **Vocabulary** in Options for names, companies, and technical terms separate
 by commas. These optional hints use Whisper's existing prompt support and stay on
 your Mac. The app remembers them; changing hints reruns the affected language passes.
 
-The menu shows the 10 most recent completed meetings. If transcription fails,
+The menu shows the 10 most recent completed meetings. Search finds matching titles
+and saved transcript text across all completed meetings in the selected folder,
+including older meetings and manual Markdown edits. Search runs locally.
+If transcription fails,
 use **Retry transcription** or **Finish saved recording** to resume from saved
 audio or video, including after a restart. Quit waits for an active recording
 and its transcript to finish saving. Force Quit or power loss can leave an
@@ -166,7 +168,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for tests, signing, and release steps.
 ## Limits
 
 - Captures one whole display; window-only and audio-only modes are not available.
-- New recordings wait until transcription finishes.
+- One recording or transcription runs at a time.
 - Transcripts have timestamps and language tags, but no speaker labels.
 - Whisper can produce text during silence; the no-speech filter does not catch every case.
 - File import, live captions, and meeting summaries are not included.

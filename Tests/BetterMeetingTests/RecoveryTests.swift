@@ -232,6 +232,40 @@ final class RecoveryTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testSearchFindsOlderTitlesAndEditedTranscripts() async throws {
+        let suite = "BetterMeetingSearch.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defaults.set(root, forKey: "outputFolder")
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: root)
+        }
+        var oldest: URL?
+        for index in 0..<12 {
+            let date = Date(timeIntervalSince1970: Double(index * 60))
+            let title = index == 0 ? "Café planning" : "Meeting \(index)"
+            let folder = try MeetingArtifacts.createDirectory(in: root, title: title, recordedAt: date)
+            try MeetingArtifacts.write(title: title, recordedAt: date, duration: 0, segments: [], to: folder)
+            if index == 0 { oldest = folder }
+        }
+        let model = AppModel(defaults: defaults)
+        XCTAssertEqual(model.transcriptionHistory.count, 10)
+        model.historyQuery = "cafe"
+        await model.historySearchTask?.value
+        XCTAssertEqual(model.transcriptionHistory.map(\.title), ["Café planning"])
+        try "Edited notes about pricing".write(to: try XCTUnwrap(oldest).appendingPathComponent("transcript.md"), atomically: true, encoding: .utf8)
+        model.historyQuery = "PRICING"
+        await model.historySearchTask?.value
+        XCTAssertEqual(model.transcriptionHistory.map(\.title), ["Café planning"])
+        model.historyQuery = "missing"
+        model.historyQuery = "  "
+        await model.historySearchTask?.value
+        XCTAssertEqual(model.transcriptionHistory.count, 10, "Cancelled search must not replace newer results")
+        XCTAssertFalse(model.searchingHistory)
+    }
+
     func testModelPreparationAcrossColdLaunches() async throws {
         guard let mode = ProcessInfo.processInfo.environment["BETTER_MEETING_MODEL_CHECK"] else {
             throw XCTSkip("Set BETTER_MEETING_MODEL_CHECK=prepare, then offline in a separate process to check the real model cache")

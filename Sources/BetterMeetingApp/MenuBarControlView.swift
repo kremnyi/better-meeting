@@ -195,8 +195,19 @@ struct MenuBarControlView: View {
             Text("Recent meetings")
                 .font(.callout.weight(.medium))
 
+            TextField("Search all titles and transcripts", text: $model.historyQuery)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Search all meetings")
+
+            if model.searchingHistory {
+                Text("Searching meetings…")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             if model.transcriptionHistory.isEmpty {
-                Text("Finished meetings will appear here. Open their folders in Finder.")
+                Text(model.historyQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                     ? "Finished meetings will appear here. Open their folders in Finder."
+                     : "No matching meetings.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {

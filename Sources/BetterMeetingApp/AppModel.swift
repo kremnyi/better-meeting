@@ -63,6 +63,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var processingFraction: Double?
     @Published private(set) var processingPhase: ProcessingPhase?
     @Published private(set) var transcriptionHistory: [MeetingHistoryItem] = []
+    @Published var historyQuery = "" {
+        didSet { searchHistory() }
+    }
+    @Published private(set) var searchingHistory = false
     @Published private(set) var unfinishedRecordings: [MeetingHistoryItem] = []
     @Published private(set) var modelReady = LocalTranscriber.cachedModelFolder() != nil
     @Published private(set) var cancellingTranscription = false
@@ -104,6 +108,8 @@ final class AppModel: ObservableObject {
     private var preparingModelOnly = false
     private var quitWhenFinished = false
     private(set) var processingTask: Task<Void, Never>?
+    private(set) var historySearchTask: Task<Void, Never>?
+    private var completedMeetings: [MeetingHistoryItem] = []
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -335,8 +341,31 @@ final class AppModel: ObservableObject {
 
     func refreshHistory() {
         let meetings = MeetingArtifacts.meetings(in: outputRoot)
-        transcriptionHistory = Array(meetings.filter { !$0.needsTranscription }.prefix(10))
+        completedMeetings = meetings.filter { !$0.needsTranscription }
         unfinishedRecordings = meetings.filter(\.needsTranscription)
+        searchHistory()
+    }
+
+    private func searchHistory() {
+        historySearchTask?.cancel()
+        let query = historyQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            searchingHistory = false
+            transcriptionHistory = Array(completedMeetings.prefix(10))
+            return
+        }
+        let meetings = completedMeetings
+        searchingHistory = true
+        historySearchTask = Task.detached(priority: .userInitiated) { [weak self] in
+            let matches = MeetingArtifacts.search(meetings, query: query)
+            await self?.showSearchResults(matches)
+        }
+    }
+
+    private func showSearchResults(_ matches: [MeetingHistoryItem]) {
+        guard !Task.isCancelled else { return }
+        transcriptionHistory = matches
+        searchingHistory = false
     }
 
     func copyTranscript(_ meeting: MeetingHistoryItem, to pasteboard: NSPasteboard = .general) throws {
