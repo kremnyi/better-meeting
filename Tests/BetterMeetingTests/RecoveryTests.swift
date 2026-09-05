@@ -182,7 +182,17 @@ final class RecoveryTests: XCTestCase {
             NSHostingView(rootView: MenuBarControlView().environmentObject(model)).fittingSize
         }
         let initial = size()
-        model.historyQuery = "Meeting 1"
+        let menu = NSHostingView(rootView: MenuBarControlView().environmentObject(model))
+        menu.frame = NSRect(origin: .zero, size: initial)
+        menu.layoutSubtreeIfNeeded()
+        func searchField(in view: NSView) -> NSSearchField? {
+            (view as? NSSearchField) ?? view.subviews.lazy.compactMap { searchField(in: $0) }.first
+        }
+        let field = try XCTUnwrap(searchField(in: menu))
+        XCTAssertEqual(field.bounds.width, initial.width - 24, accuracy: 1, "Search must fill the padded content width")
+        field.stringValue = "Meeting 1"
+        field.sendAction(field.action, to: field.target)
+        XCTAssertEqual(model.historyQuery, "Meeting 1")
         XCTAssertTrue(model.searchingHistory)
         XCTAssertEqual(size(), initial)
         await model.historySearchTask?.value
@@ -192,9 +202,28 @@ final class RecoveryTests: XCTestCase {
         await model.historySearchTask?.value
         XCTAssertTrue(model.transcriptionHistory.isEmpty)
         XCTAssertEqual(size(), initial)
-        model.historyQuery = ""
+        let cell = try XCTUnwrap(field.cell as? NSSearchFieldCell)
+        let clear = try XCTUnwrap(cell.cancelButtonCell)
+        clear.performClick(field)
+        XCTAssertEqual(model.historyQuery, "")
         XCTAssertEqual(model.transcriptionHistory.count, 7)
         XCTAssertEqual(size(), initial)
+    }
+
+    @MainActor
+    func testSavedMeetingKeepsTheSameRowHeight() {
+        _ = NSApplication.shared
+        let item = MeetingHistoryItem(
+            title: "2026-09-05 14.39.08", recordedAt: Date(timeIntervalSince1970: 1_788_611_948),
+            duration: 34, folderURL: URL(fileURLWithPath: "/tmp/layout-preview"),
+            needsTranscription: false, titleWasProvided: false
+        )
+        for saved in [false, true] {
+            let row = NSHostingView(rootView: MenuBarControlView().historyRow(item, isSaved: saved)
+                .environment(\.locale, Locale(identifier: "en_US"))
+                .frame(width: 264))
+            XCTAssertEqual(row.fittingSize.height, 47, "The saved indicator must not wrap meeting details")
+        }
     }
 
     @MainActor

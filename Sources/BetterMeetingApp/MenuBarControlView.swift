@@ -5,7 +5,6 @@ struct MenuBarControlView: View {
     @EnvironmentObject private var model: AppModel
     @State var captureOptionsPresented = false
     @State private var retranscribingMeeting: MeetingHistoryItem?
-    @FocusState private var searchFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -209,27 +208,8 @@ struct MenuBarControlView: View {
             Text("Recent meetings")
                 .font(.callout.weight(.medium))
 
-            HStack(spacing: 6) {
-                TextField("Search meetings", text: $model.historyQuery)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($searchFocused)
-                    .accessibilityLabel("Search all meetings")
-                    .help("Search all titles and transcripts")
-
-                Button {
-                    model.historyQuery = ""
-                    searchFocused = true
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .frame(width: 24, height: 24)
-                }
-                .buttonStyle(.borderless)
-                .help("Clear search")
-                .accessibilityLabel("Clear search")
-                .disabled(model.historyQuery.isEmpty)
-                .opacity(model.historyQuery.isEmpty ? 0 : 1)
-                .accessibilityHidden(model.historyQuery.isEmpty)
-            }
+            MeetingSearchField(text: $model.historyQuery)
+                .frame(height: 24)
 
             Group {
                 if model.searchingHistory {
@@ -242,7 +222,7 @@ struct MenuBarControlView: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(model.transcriptionHistory) { item in
-                                historyRow(item)
+                                historyRow(item, isSaved: item.folderURL == model.completedFolder)
 
                                 if item.id != model.transcriptionHistory.last?.id {
                                     Divider()
@@ -268,26 +248,29 @@ struct MenuBarControlView: View {
         }
     }
 
-    private func historyRow(_ item: MeetingHistoryItem) -> some View {
+    func historyRow(_ item: MeetingHistoryItem, isSaved: Bool) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
-                    .font(.callout)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(item.title)
+                        .lineLimit(1)
+                    if isSaved {
+                        Label("Saved", systemImage: "checkmark.circle.fill")
+                            .labelStyle(.iconOnly)
+                            .foregroundStyle(.green)
+                            .help("Saved")
+                    }
+                }
+                .font(.callout)
 
                 HStack(spacing: 4) {
-                    if item.folderURL == model.completedFolder {
-                        Label("Saved", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        Text("·")
-                    }
-
                     Text(item.recordedAt, format: .dateTime.month(.abbreviated).day().hour().minute())
                     Text("·")
                     Text(Timecode.string(item.duration))
                         .monospacedDigit()
                 }
                 .font(.callout)
+                .lineLimit(1)
             }
 
             Spacer(minLength: 8)
@@ -499,5 +482,39 @@ struct MenuBarControlView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+private struct MeetingSearchField: NSViewRepresentable {
+    @Binding var text: String
+
+    func makeNSView(context: Context) -> NSSearchField {
+        let field = NSSearchField()
+        field.placeholderString = "Search meetings"
+        field.toolTip = "Search all titles and transcripts"
+        field.setAccessibilityLabel("Search all meetings")
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.sendsSearchStringImmediately = true
+        field.sendsWholeSearchString = false
+        field.target = context.coordinator
+        field.action = #selector(Coordinator.search(_:))
+        return field
+    }
+
+    func updateNSView(_ field: NSSearchField, context: Context) {
+        context.coordinator.text = $text
+        if field.stringValue != text { field.stringValue = text }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+
+    final class Coordinator: NSObject {
+        var text: Binding<String>
+
+        init(text: Binding<String>) { self.text = text }
+
+        @objc func search(_ field: NSSearchField) {
+            text.wrappedValue = field.stringValue
+        }
     }
 }
