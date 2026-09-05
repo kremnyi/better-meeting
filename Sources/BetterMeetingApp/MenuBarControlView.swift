@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MenuBarControlView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var captureOptionsExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -71,63 +72,80 @@ struct MenuBarControlView: View {
             TextField("Meeting name (optional)", text: $model.meetingTitle)
                 .textFieldStyle(.roundedBorder)
 
-            destinationButton
-
-            DisclosureGroup("Capture options") {
-                Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
-                    GridRow {
-                        Text("Display")
-                        Picker("Display", selection: $model.selectedDisplayID) {
-                            Text("Main display").tag(UInt32(0))
-                            ForEach(model.displays, id: \.id) { display in
-                                Text(display.name).tag(display.id)
-                            }
-                            if model.selectedDisplayID != 0 && !model.displays.contains(where: { $0.id == model.selectedDisplayID }) {
-                                Text("Unavailable display").tag(model.selectedDisplayID)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity)
-                    }
-                    GridRow {
-                        Text("Microphone")
-                        Picker("Microphone", selection: $model.selectedMicrophoneID) {
-                            Text("System default").tag("")
-                            ForEach(model.microphones, id: \.uniqueID) { microphone in
-                                Text(microphone.localizedName).tag(microphone.uniqueID)
-                            }
-                            if !model.selectedMicrophoneID.isEmpty && !model.microphones.contains(where: { $0.uniqueID == model.selectedMicrophoneID }) {
-                                Text("Unavailable microphone").tag(model.selectedMicrophoneID)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity)
-                    }
-                    GridRow {
-                        Text("Resolution")
-                        Picker("Resolution", selection: $model.captureResolution) {
-                            ForEach(CaptureResolution.allCases, id: \.self) { resolution in
-                                Text(resolution.label).tag(resolution)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity)
-                        .help("Limits the video's longest edge without upscaling")
-                    }
-                    GridRow {
-                        Text("Frame rate")
-                        Picker("Frame rate", selection: $model.captureQuality) {
-                            ForEach(CaptureQuality.allCases, id: \.self) { quality in
-                                Text(quality.label).tag(quality)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity)
-                        .help("Higher frame rates make motion smoother and use more storage")
-                    }
+            VStack(alignment: .leading, spacing: 0) {
+                Button {
+                    captureOptionsExpanded.toggle()
+                } label: {
+                    Label(
+                        "Capture options",
+                        systemImage: captureOptionsExpanded ? "chevron.down" : "chevron.right"
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-                .controlSize(.small)
-                .padding(.top, 6)
+                .buttonStyle(.plain)
+                .accessibilityValue(captureOptionsExpanded ? "Expanded" : "Collapsed")
+
+                if captureOptionsExpanded {
+                    Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                        GridRow {
+                            Text("Display")
+                            Picker("Display", selection: $model.selectedDisplayID) {
+                                Text("Main display").tag(UInt32(0))
+                                ForEach(model.displays, id: \.id) { display in
+                                    Text(display.name).tag(display.id)
+                                }
+                                if model.selectedDisplayID != 0 && !model.displays.contains(where: { $0.id == model.selectedDisplayID }) {
+                                    Text("Unavailable display").tag(model.selectedDisplayID)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity)
+                        }
+                        GridRow {
+                            Text("Microphone")
+                            Picker("Microphone", selection: $model.selectedMicrophoneID) {
+                                Text("System default").tag("")
+                                ForEach(model.microphones, id: \.uniqueID) { microphone in
+                                    Text(microphone.localizedName).tag(microphone.uniqueID)
+                                }
+                                if !model.selectedMicrophoneID.isEmpty && !model.microphones.contains(where: { $0.uniqueID == model.selectedMicrophoneID }) {
+                                    Text("Unavailable microphone").tag(model.selectedMicrophoneID)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity)
+                        }
+                        GridRow {
+                            Text("Resolution")
+                            Picker("Resolution", selection: $model.captureResolution) {
+                                ForEach(CaptureResolution.allCases, id: \.self) { resolution in
+                                    Text(resolution.label).tag(resolution)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity)
+                            .help("Limits the video's longest edge without upscaling")
+                        }
+                        GridRow {
+                            Text("Frame rate")
+                            Picker("Frame rate", selection: $model.captureQuality) {
+                                ForEach(CaptureQuality.allCases, id: \.self) { quality in
+                                    Text(quality.label).tag(quality)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity)
+                            .help("Higher frame rates make motion smoother and use more storage")
+                        }
+                        GridRow {
+                            Text("Save to")
+                            destinationButton
+                        }
+                    }
+                    .controlSize(.small)
+                    .padding(.top, 6)
+                }
             }
             .font(.callout)
 
@@ -242,21 +260,17 @@ struct MenuBarControlView: View {
         Button {
             model.chooseOutputFolder()
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Image(systemName: "folder")
 
                 Text(model.outputRoot.lastPathComponent)
                     .lineLimit(1)
 
-                Spacer()
-
-                Text("Change")
-                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
             }
-            .font(.callout)
-            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bordered)
         .help(model.outputRoot.path)
         .accessibilityLabel("Save recordings to \(model.outputRoot.path)")
         .accessibilityHint("Choose a different folder")
