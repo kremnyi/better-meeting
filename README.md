@@ -19,7 +19,7 @@ The app's menu bar view, rendered with fictional meetings.
 
 ## Features
 
-- Choose a display, microphone, video resolution, and quality; record with ScreenCaptureKit
+- Choose a display, microphone, video resolution, and frame rate; record with ScreenCaptureKit
 - Transcribe locally with WhisperKit after recording stops
 - Automatically name untitled meetings from a person, company, or product and a recurring topic
 - Prepare the speech model before your first meeting and follow processing progress
@@ -137,7 +137,7 @@ installed. Controls live in the menu bar; the app has no Dock icon.
    and load the multilingual Whisper `small` model before a meeting. Otherwise,
    setup happens after your first recording stops.
 2. Choose a save folder and adjust **Capture options** if needed. The defaults are
-   your main display, system microphone, 1440 px resolution, and Standard quality.
+   your main display, system microphone, 1440 px resolution, and 10 fps frame rate.
 3. Start recording and grant the permissions below. After granting screen
    recording access, restart the app when prompted.
 4. Stop recording and wait for transcription. Use the folder button beside the
@@ -148,8 +148,8 @@ The app uses the display's pixel size, including Retina scaling, preserves its
 aspect ratio, and never upscales smaller displays. Dimensions are rounded down
 to even pixels for H.264 recording.
 
-**Video quality** controls motion smoothness: Compact (up to 5 fps), Standard
-(up to 10 fps), or Smooth (up to 30 fps). Higher resolution and frame rate can
+**Frame rate** controls motion smoothness: 5 fps (Compact), 10 fps (Standard),
+or 30 fps (Smooth). Higher resolution and frame rate can
 increase file size and capture work. These presets use the native recorder;
 compression bitrate is managed by macOS. Audio and transcription are unaffected.
 Choices are saved for future recordings and can be changed before starting one.

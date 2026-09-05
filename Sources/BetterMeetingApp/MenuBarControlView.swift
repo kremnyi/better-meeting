@@ -98,15 +98,13 @@ struct MenuBarControlView: View {
                             Text(resolution.label).tag(resolution)
                         }
                     }
-                    Picker("Video quality", selection: $model.captureQuality) {
+                    .help("Limits the video's longest edge without upscaling")
+                    Picker("Frame rate", selection: $model.captureQuality) {
                         ForEach(CaptureQuality.allCases, id: \.self) { quality in
                             Text(quality.label).tag(quality)
                         }
                     }
-                    Text("Resolution limits the longest edge. Quality controls motion smoothness.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .help("Higher frame rates make motion smoother and use more storage")
                 }
                 .controlSize(.small)
                 .padding(.top, 6)
