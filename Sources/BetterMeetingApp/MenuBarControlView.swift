@@ -158,6 +158,17 @@ struct MenuBarControlView: View {
                 .help("Higher frame rates make motion smoother and use more storage")
             }
             GridRow {
+                Text("Language")
+                Picker("Transcription language", selection: $model.transcriptionLanguage) {
+                    ForEach(TranscriptionLanguage.allCases, id: \.self) { language in
+                        Text(language.label).tag(language)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                .help("Auto transcribes Ukrainian, Russian, and English separately, then merges by confidence")
+            }
+            GridRow {
                 Text("Save to")
                 destinationButton
             }

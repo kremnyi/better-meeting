@@ -11,7 +11,8 @@ swift test
 ```
 
 Tests cover meeting recovery, audio exports, saved preferences, capture presets,
-and automatic titles. GitHub Actions runs the same checks and keeps any macOS
+automatic titles, multilingual merging, and per-language cache recovery.
+GitHub Actions runs the same checks and keeps any macOS
 crash reports when a check fails.
 
 Use `dist/Better Meeting.app` to check recording permissions. macOS associates
@@ -32,6 +33,18 @@ process can load the cache with HTTP requests blocked:
 BETTER_MEETING_MODEL_CHECK=prepare swift test --filter testModelPreparationAcrossColdLaunches
 BETTER_MEETING_MODEL_CHECK=offline swift test --filter testModelPreparationAcrossColdLaunches
 ```
+
+To check all three languages with actual audio, use a disposable recording that
+contains Ukrainian, Russian, and English speech. The check saves pass caches next
+to the audio and uses the model under `.build/model-check`:
+
+```bash
+BETTER_MEETING_TRANSCRIPTION_CHECK=/path/to/mixed.wav swift test --filter testRealMultilingualRecording
+```
+
+With the same environment variable, `--filter testTurboSilenceLimitation` records
+the turbo model's known silence hallucination as an expected failure. Keep the
+original confidence thresholds; do not tune them just to pass a silent fixture.
 
 To update the README screenshot with fictional meetings:
 

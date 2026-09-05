@@ -40,7 +40,7 @@ signatures change with new builds. Uninstalling the app keeps saved meetings.
 ## Record a meeting
 
 1. Open the menu bar icon. Use **Set up transcription** to download and load the
-   multilingual Whisper `small` model before your first meeting. Otherwise,
+   multilingual Whisper `large-v3-turbo` model before your first meeting. Otherwise,
    setup happens when that recording stops.
 2. Enter a meeting name or leave it empty for automatic naming.
 3. Open **Options** in the bottom-left corner to choose a display, microphone, and save folder.
@@ -58,11 +58,22 @@ and never upscales smaller displays. Frame rate sets a maximum of 5, 10, or
 30 fps. Higher settings can increase file size and processing load; macOS manages
 compression bitrate. These settings do not affect audio or transcription.
 
+**Language** defaults to **Auto (UK, RU, EN)**. Following the original project's
+strategy, Auto transcribes the whole recording in Ukrainian, Russian, and English
+separately, then merges segments by confidence and filters likely silence
+hallucinations. Choose one language for a single pass. The app remembers your choice.
+Three languages require three passes; progress shows the current language and pass.
+
 The menu shows the 10 most recent completed meetings. If transcription fails,
 use **Retry transcription** or **Finish saved recording** to resume from saved
 audio or video, including after a restart. Quit waits for an active recording
 and its transcript to finish saving. Force Quit or power loss can leave an
 unfinished video that cannot be recovered.
+
+Each completed language pass is saved as `pass_uk.json`, `pass_ru.json`, or
+`pass_en.json` in the meeting folder. Retry reuses matching passes and reruns any
+missing or damaged ones. Changing the audio, model, or decoding options invalidates
+the affected cache. Finished transcripts are not regenerated automatically.
 
 Right-click a completed meeting to **Copy Transcript** or **Rename…**. Copy uses
 the saved Markdown, including any edits. Rename updates the folder, title, and
@@ -81,11 +92,14 @@ macOS **System Settings → Notifications → Better Meeting**.
 ├── audio.m4a
 ├── transcript.md
 ├── transcript.json
+├── pass_uk.json
+├── pass_ru.json
+├── pass_en.json
 └── metadata.json
 ```
 
 `transcript.md` has timestamps and a link to the video. `transcript.json` stores
-segment times, text, and detected language. `metadata.json` stores the title,
+segment times, text, and language tags. `metadata.json` stores the title,
 recording date, duration, file names, and transcription status.
 
 For unnamed meetings, Apple's `NaturalLanguage` framework looks for a person,
@@ -107,8 +121,10 @@ files can require another download.
 
 Model files live under `~/Documents/huggingface/models/argmaxinc/whisperkit-coreml/`.
 Tokenizer files may also be stored under
-`~/Documents/huggingface/models/openai/whisper-small/`. The first load can take
-longer while Core ML prepares the model.
+`~/Documents/huggingface/models/openai/whisper-large-v3/`. WhisperKit calls the
+turbo model `openai_whisper-large-v3-v20240930`; its model files total about 1.6 GB.
+Upgrading from `small` requires this download once. Existing model files are kept.
+The first load can take longer while Core ML prepares the model.
 
 ## Build from source
 
@@ -131,7 +147,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for tests, signing, and release steps.
 
 - Captures one whole display; window-only and audio-only modes are not available.
 - New recordings wait until transcription finishes.
-- Transcripts have timestamps and detected language, but no speaker labels.
+- Transcripts have timestamps and language tags, but no speaker labels.
+- Whisper can produce text during silence; the no-speech filter does not catch every case.
 - File import, live captions, and meeting summaries are not included.
 - The selected display and microphone must be connected when recording starts.
 

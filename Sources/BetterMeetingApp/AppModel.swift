@@ -77,6 +77,9 @@ final class AppModel: ObservableObject {
     @Published var captureQuality: CaptureQuality {
         didSet { defaults.set(captureQuality.rawValue, forKey: "captureQuality") }
     }
+    @Published var transcriptionLanguage: TranscriptionLanguage {
+        didSet { defaults.set(transcriptionLanguage.rawValue, forKey: "transcriptionLanguage") }
+    }
 
     private let defaults: UserDefaults
     private let recorder = MeetingRecorder()
@@ -97,6 +100,7 @@ final class AppModel: ObservableObject {
         selectedMicrophoneID = defaults.string(forKey: "microphoneID") ?? ""
         captureResolution = CaptureResolution(rawValue: defaults.integer(forKey: "captureResolution")) ?? .pixels1440
         captureQuality = CaptureQuality(rawValue: defaults.integer(forKey: "captureQuality")) ?? .standard
+        transcriptionLanguage = TranscriptionLanguage(rawValue: defaults.string(forKey: "transcriptionLanguage") ?? "") ?? .auto
         recorder.onUnexpectedStop = { [weak self] error in
             self?.captureStoppedExternally(with: error)
         }
@@ -462,7 +466,9 @@ final class AppModel: ObservableObject {
                 titleWasProvided: titleWasProvided, to: folder
             )
 
-            let segments = try await transcriber.transcribe(audioURL: audioURL) { [weak self] progress in
+            let segments = try await transcriber.transcribe(
+                audioURL: audioURL, languages: transcriptionLanguage.languages
+            ) { [weak self] progress in
                 Task { @MainActor [weak self] in
                     self?.updateTranscriptionProgress(progress)
                 }
@@ -489,7 +495,7 @@ final class AppModel: ObservableObject {
             )
 
             completedFolder = folder
-            modelReady = true
+            modelReady = LocalTranscriber.cachedModelFolder() != nil
             refreshHistory()
             await MeetingNotifications.post(
                 title: transcriptionHistory.first(where: { $0.folderURL == folder })?.title ?? folder.lastPathComponent,
@@ -540,8 +546,10 @@ final class AppModel: ObservableObject {
             setProcessingPhase(.downloadingModel, fraction: fraction)
         case .loadingModel:
             setProcessingPhase(.loadingModel)
-        case .transcribing(let fraction):
+        case .transcribing(let fraction, let language, let pass, let total):
             setProcessingPhase(.transcribing, fraction: fraction)
+            let name = TranscriptionLanguage(rawValue: language)?.label ?? language
+            statusText = "Transcribing \(name) · pass \(pass) of \(total)…"
         }
     }
 

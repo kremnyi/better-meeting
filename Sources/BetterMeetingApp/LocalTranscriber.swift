@@ -6,7 +6,7 @@ enum LocalTranscriptionProgress: Sendable {
     case preparingModel
     case downloadingModel(Double)
     case loadingModel
-    case transcribing(Double)
+    case transcribing(Double, language: String, pass: Int, total: Int)
 }
 
 actor LocalTranscriber {
@@ -15,13 +15,15 @@ actor LocalTranscriber {
 
     static let defaultDownloadBase = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("huggingface")
+    // WhisperKit's name for OpenAI large-v3-turbo (the four-layer decoder).
+    static let modelVariant = "openai_whisper-large-v3-v20240930"
 
     init(downloadBase: URL = defaultDownloadBase) {
         self.downloadBase = downloadBase
     }
 
     static func cachedModelFolder(in downloadBase: URL = defaultDownloadBase) -> URL? {
-        let folder = downloadBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml/openai_whisper-small")
+        let folder = downloadBase.appendingPathComponent("models/argmaxinc/whisperkit-coreml/\(modelVariant)")
         return hasModelFiles(in: folder) ? folder : nil
     }
 
@@ -47,7 +49,7 @@ actor LocalTranscriber {
             modelFolder = cached
         } else {
             modelFolder = try await WhisperKit.download(
-                variant: "openai_whisper-small",
+                variant: Self.modelVariant,
                 downloadBase: downloadBase,
                 progressCallback: { progress in
                     let fraction = progress.fractionCompleted
@@ -58,7 +60,7 @@ actor LocalTranscriber {
         }
 
         progressHandler(.loadingModel)
-        let loaded = try await WhisperKit(
+        let loaded = try await MeetingWhisperKit(
             modelFolder: modelFolder.path,
             tokenizerFolder: downloadBase,
             verbose: false,
@@ -72,15 +74,9 @@ actor LocalTranscriber {
 
     func transcribe(
         audioURL: URL,
+        languages: [String] = ["uk", "ru", "en"],
         progressHandler: @escaping @Sendable (LocalTranscriptionProgress) -> Void
     ) async throws -> [TranscriptSegment] {
-        let whisper = try await prepare(progressHandler: progressHandler)
-
-        let decodingOptions = DecodingOptions(
-            verbose: false,
-            wordTimestamps: false,
-            chunkingStrategy: .vad
-        )
         let audioFile = try AVAudioFile(
             forReading: audioURL,
             commonFormat: .pcmFormatFloat32,
@@ -88,32 +84,37 @@ actor LocalTranscriber {
         )
         let duration = Double(audioFile.length) / audioFile.fileFormat.sampleRate
 
-        whisper.segmentDiscoveryCallback = { segments in
-            guard duration > 0, let end = segments.last?.end else { return }
-            progressHandler(.transcribing(min(Double(end) / duration, 1)))
-        }
-        defer { whisper.segmentDiscoveryCallback = nil }
-
-        progressHandler(.transcribing(0))
-        let results = try await whisper.transcribe(
-            audioPath: audioURL.path,
-            audioInputOptions: AudioInputOptions(audioLoadingMode: .incremental),
-            decodeOptions: decodingOptions
-        )
-        progressHandler(.transcribing(1))
-
-        return results.flatMap { result in
-            result.segments.compactMap { segment in
+        return try await TranscriptionPasses.run(
+            audioURL: audioURL, languages: languages, progressHandler: progressHandler
+        ) { options, index in
+            let whisper = try await self.prepare(progressHandler: progressHandler)
+            let language = languages[index]
+            let report: @Sendable (Double) -> Void = { fraction in
+                progressHandler(.transcribing(
+                    (Double(index) + fraction) / Double(languages.count),
+                    language: language, pass: index + 1, total: languages.count
+                ))
+            }
+            report(0)
+            whisper.segmentDiscoveryCallback = { segments in
+                guard duration > 0, let end = segments.last?.end else { return }
+                report(min(max(Double(end) / duration, 0), 0.99))
+            }
+            defer { whisper.segmentDiscoveryCallback = nil }
+            let results = try await whisper.transcribe(
+                audioPath: audioURL.path,
+                audioInputOptions: AudioInputOptions(audioLoadingMode: .incremental),
+                decodeOptions: options
+            )
+            try Task.checkCancellation()
+            return results.flatMap(\.segments).compactMap { segment in
                 let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { return nil }
-                return TranscriptSegment(
-                    start: TimeInterval(segment.start),
-                    end: TimeInterval(segment.end),
-                    text: text,
-                    language: result.language
+                return ScoredSegment(
+                    start: Double(segment.start), end: Double(segment.end), text: text,
+                    lang: language, score: segment.avgLogprob, nospeech: segment.noSpeechProb
                 )
             }
         }
-        .sorted { $0.start < $1.start }
     }
 }
