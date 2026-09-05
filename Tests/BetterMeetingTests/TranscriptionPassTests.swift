@@ -113,6 +113,30 @@ final class TranscriptionPassTests: XCTestCase {
         XCTAssertGreaterThan(SpeechProbabilityDecoder.probability(of: 1, in: logits), 0.99)
     }
 
+    func testCancellationKeepsOnlyCompletedPasses() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let audio = root.appendingPathComponent("audio.m4a")
+        try Data([1]).write(to: audio)
+        let task = Task {
+            try await TranscriptionPasses.run(audioURL: audio, languages: ["uk", "en"], progressHandler: { _ in }) { _, index in
+                if index == 1 { withUnsafeCurrentTask { $0?.cancel() } }
+                return []
+            }
+        }
+        do {
+            _ = try await task.value
+            XCTFail("Cancellation must propagate")
+        } catch is CancellationError {}
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("pass_uk.json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("pass_en.json").path))
+        _ = try await TranscriptionPasses.run(audioURL: audio, languages: ["uk", "en"], progressHandler: { _ in }) { _, index in
+            XCTAssertEqual(index, 1)
+            return []
+        }
+    }
+
     @MainActor
     func testLanguagePreferencePersists() throws {
         let suite = "BetterMeetingLanguages.\(UUID().uuidString)"

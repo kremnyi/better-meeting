@@ -349,6 +349,10 @@ struct MenuBarControlView: View {
             processingIndicator
                 .tint(.signalCoral)
                 .accessibilityLabel(model.statusText)
+
+            Button("Cancel transcription", action: model.cancelTranscription)
+                .disabled(!model.canCancelTranscription)
+                .help("Keeps the recording and completed language passes so you can resume later")
         }
     }
 

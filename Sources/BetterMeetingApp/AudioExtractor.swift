@@ -31,9 +31,14 @@ enum AudioExtractor {
                 }
             }
             defer { group.cancelAll() }
-            try await exporter.export(to: temporaryURL, as: .m4a)
+            try await withTaskCancellationHandler {
+                try await exporter.export(to: temporaryURL, as: .m4a)
+            } onCancel: {
+                exporter.cancelExport()
+            }
         }
 
+        try Task.checkCancellation()
         if FileManager.default.fileExists(atPath: audioURL.path) {
             _ = try FileManager.default.replaceItemAt(audioURL, withItemAt: temporaryURL)
         } else {

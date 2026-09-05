@@ -63,6 +63,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var transcriptionHistory: [MeetingHistoryItem] = []
     @Published private(set) var unfinishedRecordings: [MeetingHistoryItem] = []
     @Published private(set) var modelReady = LocalTranscriber.cachedModelFolder() != nil
+    @Published private(set) var cancellingTranscription = false
     @Published private(set) var displays: [(id: CGDirectDisplayID, name: String)] = []
     @Published private(set) var microphones: [AVCaptureDevice] = []
     @Published var selectedDisplayID: CGDirectDisplayID {
@@ -90,6 +91,7 @@ final class AppModel: ObservableObject {
     private var timer: Timer?
     private var preparingModelOnly = false
     private var quitWhenFinished = false
+    private var processingTask: Task<Void, Never>?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -232,10 +234,22 @@ final class AppModel: ObservableObject {
         privacyPermission = nil
         state = .processing
         setProcessingPhase(.preparingAudio)
-        Task {
+        processingTask = Task {
             await MeetingNotifications.requestPermission()
             await finishRecording(stopCapture: false)
         }
+    }
+
+    var canCancelTranscription: Bool {
+        state == .processing && processingPhase != .finalizingRecording
+            && processingPhase != .writingFiles && !cancellingTranscription
+    }
+
+    func cancelTranscription() {
+        guard canCancelTranscription else { return }
+        cancellingTranscription = true
+        statusText = "Cancelling transcription…"
+        processingTask?.cancel()
     }
 
     func dismissFailure() {
@@ -410,7 +424,7 @@ final class AppModel: ObservableObject {
 
     private func stopRecording() {
         beginProcessing()
-        Task {
+        processingTask = Task {
             await finishRecording(stopCapture: true)
         }
     }
@@ -424,7 +438,7 @@ final class AppModel: ObservableObject {
         }
 
         beginProcessing()
-        Task {
+        processingTask = Task {
             await finishRecording(stopCapture: false)
         }
     }
@@ -439,6 +453,10 @@ final class AppModel: ObservableObject {
     }
 
     private func finishRecording(stopCapture: Bool) async {
+        defer {
+            processingTask = nil
+            cancellingTranscription = false
+        }
         do {
             guard var folder = activeFolder, let recordedAt else {
                 throw AppError.missingRecording
@@ -460,6 +478,7 @@ final class AppModel: ObservableObject {
                 }
             }
             let audio = try AVAudioFile(forReading: audioURL)
+            try Task.checkCancellation()
             elapsed = Double(audio.length) / audio.fileFormat.sampleRate
             try MeetingArtifacts.writeMetadata(
                 title: meetingTitle, recordedAt: recordedAt, duration: elapsed,
@@ -474,6 +493,7 @@ final class AppModel: ObservableObject {
                 }
             }
 
+            try Task.checkCancellation()
             setProcessingPhase(.writingFiles)
             if !titleWasProvided {
                 let generatedTitle = await Task.detached(priority: .utility) {
@@ -516,6 +536,19 @@ final class AppModel: ObservableObject {
             if let activeFolder {
                 completedFolder = activeFolder
             }
+            if Task.isCancelled {
+                state = .idle
+                statusText = "Transcription cancelled. Saved audio and completed passes are kept."
+                processingPhase = nil
+                processingFraction = nil
+                activeFolder = nil
+                recordedAt = nil
+                meetingTitle = ""
+                elapsed = 0
+                refreshHistory()
+                completeTermination(false)
+                return
+            }
             fail(error)
             if let activeFolder {
                 await MeetingNotifications.post(title: meetingTitle, folder: activeFolder, failed: true)
@@ -537,6 +570,7 @@ final class AppModel: ObservableObject {
     }
 
     private func updateTranscriptionProgress(_ progress: LocalTranscriptionProgress) {
+        guard !cancellingTranscription else { return }
         guard state == .processing || (state == .preparing && preparingModelOnly) else { return }
 
         switch progress {

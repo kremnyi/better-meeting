@@ -70,6 +70,9 @@ audio or video, including after a restart. Quit waits for an active recording
 and its transcript to finish saving. Force Quit or power loss can leave an
 unfinished video that cannot be recovered.
 
+**Cancel transcription** stops processing and keeps the recording and completed
+language passes. Use **Finish saved recording** to resume later, even after a restart.
+
 Each completed language pass is saved as `pass_uk.json`, `pass_ru.json`, or
 `pass_en.json` in the meeting folder. Retry reuses matching passes and reruns any
 missing or damaged ones. Changing the audio, model, or decoding options invalidates

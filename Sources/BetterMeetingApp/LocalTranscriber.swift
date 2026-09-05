@@ -42,6 +42,7 @@ actor LocalTranscriber {
     func prepare(
         progressHandler: @escaping @Sendable (LocalTranscriptionProgress) -> Void
     ) async throws -> WhisperKit {
+        try Task.checkCancellation()
         if let whisper { return whisper }
         progressHandler(.preparingModel)
         let modelFolder: URL
@@ -69,6 +70,7 @@ actor LocalTranscriber {
             download: false
         )
         whisper = loaded
+        try Task.checkCancellation()
         return loaded
     }
 
