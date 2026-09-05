@@ -314,6 +314,11 @@ struct MenuBarControlView: View {
                 .monospacedDigit()
                 .contentTransition(.numericText())
 
+            VStack(spacing: 6) {
+                audioMeter("Microphone", level: model.microphoneLevel)
+                audioMeter("System audio", level: model.systemAudioLevel)
+            }
+
             Text(model.statusText)
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -356,6 +361,16 @@ struct MenuBarControlView: View {
             Button("Cancel transcription", action: model.cancelTranscription)
                 .disabled(!model.canCancelTranscription)
                 .help("Keeps the recording and completed language passes so you can resume later")
+        }
+    }
+
+    private func audioMeter(_ label: String, level: Double) -> some View {
+        HStack(spacing: 8) {
+            Text(label).font(.caption).frame(width: 78, alignment: .leading)
+            ProgressView(value: level)
+                .tint(.green)
+                .accessibilityLabel(label)
+                .accessibilityValue(level > 0 ? "Audio detected" : "No audio detected")
         }
     }
 

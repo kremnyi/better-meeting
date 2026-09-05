@@ -53,6 +53,8 @@ final class AppModel: ObservableObject {
     @Published var meetingTitle = ""
     @Published private(set) var state: AppState = .idle
     @Published private(set) var elapsed: TimeInterval = 0
+    @Published private(set) var microphoneLevel = 0.0
+    @Published private(set) var systemAudioLevel = 0.0
     @Published private(set) var statusText = "Ready to record your display and audio."
     @Published private(set) var errorMessage: String?
     @Published private(set) var completedFolder: URL?
@@ -587,6 +589,8 @@ final class AppModel: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.elapsed = Date().timeIntervalSince(startDate)
+                self?.microphoneLevel = self?.recorder.audioLevel(microphone: true) ?? 0
+                self?.systemAudioLevel = self?.recorder.audioLevel(microphone: false) ?? 0
             }
         }
     }
@@ -594,6 +598,8 @@ final class AppModel: ObservableObject {
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
+        microphoneLevel = 0
+        systemAudioLevel = 0
     }
 
     private func updateTranscriptionProgress(_ progress: LocalTranscriptionProgress) {

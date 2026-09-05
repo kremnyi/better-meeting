@@ -1,17 +1,25 @@
 import AVFoundation
+import Accelerate
 import CoreGraphics
 import CoreMedia
 import Foundation
 import ScreenCaptureKit
 
 @MainActor
-final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
+final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelegate, SCStreamOutput {
     var onUnexpectedStop: ((Error?) -> Void)?
 
     private var stream: SCStream?
     private var recordingOutput: SCRecordingOutput?
     private var startContinuation: CheckedContinuation<Void, Error>?
     private var stopContinuation: CheckedContinuation<Void, Error>?
+    private var levels: [SCStreamOutputType: (value: Double, time: Date)] = [:]
+
+    func audioLevel(microphone: Bool) -> Double {
+        guard let level = levels[microphone ? .microphone : .audio],
+              Date().timeIntervalSince(level.time) < 0.5 else { return 0 }
+        return level.value
+    }
 
     func requestPermissions() async throws {
         guard CGPreflightScreenCaptureAccess() else {
@@ -92,6 +100,8 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
             delegate: self
         )
         let stream = SCStream(filter: filter, configuration: configuration, delegate: self)
+        try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: .main)
+        try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: .main)
         try stream.addRecordingOutput(recordingOutput)
 
         self.stream = stream
@@ -142,6 +152,36 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
             guard recordingOutput === self.recordingOutput else { return }
             finishStart(with: .success(()))
         }
+    }
+
+    nonisolated func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        // Both audio outputs are explicitly delivered on the main queue.
+        MainActor.assumeIsolated {
+            guard stream === self.stream, type == .audio || type == .microphone else { return }
+            let now = Date()
+            guard now.timeIntervalSince(levels[type]?.time ?? .distantPast) >= 0.1,
+                  sampleBuffer.isValid, CMSampleBufferDataIsReady(sampleBuffer),
+                  let description = sampleBuffer.formatDescription else { return }
+            let format = AVAudioFormat(cmAudioFormatDescription: description)
+            let frames = sampleBuffer.numSamples
+            guard frames > 0, frames <= Int(Int32.max),
+                  let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)) else { return }
+            buffer.frameLength = AVAudioFrameCount(frames)
+            guard CMSampleBufferCopyPCMDataIntoAudioBufferList(sampleBuffer, at: 0, frameCount: Int32(frames), into: buffer.mutableAudioBufferList) == noErr else { return }
+            levels[type] = (Self.meterLevel(buffer), now)
+        }
+    }
+
+    static func meterLevel(_ buffer: AVAudioPCMBuffer) -> Double {
+        guard buffer.frameLength > 0, let channels = buffer.floatChannelData else { return 0 }
+        var peakRMS: Float = 0
+        for channel in 0..<Int(buffer.format.channelCount) {
+            var rms: Float = 0
+            vDSP_rmsqv(channels[channel], vDSP_Stride(buffer.stride), &rms, vDSP_Length(buffer.frameLength))
+            peakRMS = max(peakRMS, rms)
+        }
+        guard peakRMS.isFinite, peakRMS > 0 else { return 0 }
+        return min(1, max(0, (20 * log10(Double(peakRMS)) + 60) / 60))
     }
 
     nonisolated func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
@@ -216,6 +256,7 @@ final class MeetingRecorder: NSObject, SCRecordingOutputDelegate, SCStreamDelega
         let previousStream = stream
         stream = nil
         recordingOutput = nil
+        levels.removeAll()
         Task { try? await previousStream?.stopCapture() }
     }
 }

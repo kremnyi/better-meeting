@@ -213,6 +213,25 @@ final class RecoveryTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testAudioMeterHandlesSilenceStereoAndClipping() throws {
+        for interleaved in [false, true] {
+            let format = try XCTUnwrap(AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 48_000, channels: 2, interleaved: interleaved))
+            let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 100))
+            buffer.frameLength = 100
+            let channels = try XCTUnwrap(buffer.floatChannelData)
+            for frame in 0..<100 {
+                channels[0][frame * buffer.stride] = 0
+                channels[1][frame * buffer.stride] = 0
+            }
+            XCTAssertEqual(MeetingRecorder.meterLevel(buffer), 0)
+            for frame in 0..<100 { channels[1][frame * buffer.stride] = 0.1 }
+            XCTAssertEqual(MeetingRecorder.meterLevel(buffer), 2.0 / 3, accuracy: 0.001)
+            for frame in 0..<100 { channels[1][frame * buffer.stride] = 2 }
+            XCTAssertEqual(MeetingRecorder.meterLevel(buffer), 1)
+        }
+    }
+
     func testModelPreparationAcrossColdLaunches() async throws {
         guard let mode = ProcessInfo.processInfo.environment["BETTER_MEETING_MODEL_CHECK"] else {
             throw XCTSkip("Set BETTER_MEETING_MODEL_CHECK=prepare, then offline in a separate process to check the real model cache")

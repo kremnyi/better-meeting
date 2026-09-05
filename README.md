@@ -51,6 +51,10 @@ signatures change with new builds. Uninstalling the app keeps saved meetings.
 5. Stop recording and wait for transcription. Click the folder button beside the
    finished meeting to open its files in Finder.
 
+While recording, separate microphone and system-audio meters show incoming sound.
+An empty meter can mean silence; check the selected input if it stays empty while
+you expect sound.
+
 Options also include **Resolution** and **Frame rate**, defaulting to
 1440 px and 10 fps. Resolution limits the video's longest edge to 1280, 1440,
 1920, or 2560 pixels. It uses Retina pixels, preserves the display's proportions,
