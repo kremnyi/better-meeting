@@ -99,6 +99,20 @@ final class RecoveryTests: XCTestCase {
     }
 
     @MainActor
+    func testCaptureOptionsDoesNotResizeMenu() throws {
+        let suite = "BetterMeetingLayout.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.set(FileManager.default.temporaryDirectory.appendingPathComponent(suite), forKey: "outputFolder")
+        defer { defaults.removePersistentDomain(forName: suite) }
+        _ = NSApplication.shared
+        let model = AppModel(defaults: defaults)
+        let closed = NSHostingView(rootView: MenuBarControlView().environmentObject(model))
+        let presented = NSHostingView(rootView: MenuBarControlView(captureOptionsPresented: true).environmentObject(model))
+        XCTAssertGreaterThan(closed.fittingSize.height, 0)
+        XCTAssertEqual(presented.fittingSize, closed.fittingSize)
+    }
+
+    @MainActor
     func testRenderMenuBarPreview() throws {
         guard let path = ProcessInfo.processInfo.environment["BETTER_MEETING_PREVIEW_PATH"] else {
             throw XCTSkip("Set BETTER_MEETING_PREVIEW_PATH to render the menu with fictional meetings")
