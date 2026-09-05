@@ -164,6 +164,51 @@ final class RecoveryTests: XCTestCase {
     }
 
     @MainActor
+    func testOptionsAndAboutLayouts() throws {
+        let suite = "BetterMeetingPanelLayout.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.set(FileManager.default.temporaryDirectory.appendingPathComponent(suite), forKey: "outputFolder")
+        defer { defaults.removePersistentDomain(forName: suite) }
+        _ = NSApplication.shared
+        let model = AppModel(defaults: defaults)
+        var panels: [(String, AnyView, CGFloat)] = [
+            ("options", AnyView(CaptureOptionsView()), 360),
+            ("advanced", AnyView(CaptureOptionsView(decodingPresented: true)), 360)
+        ]
+        for (name, status): (String, ReleaseCheck.Status) in [
+            ("unchecked", .unchecked), ("checking", .checking), ("current", .current),
+            ("available", .available("0.3.9")), ("failed", .failed)
+        ] {
+            panels.append(("about-\(name)", AnyView(AboutView(version: "0.3.8", homebrewAvailable: true, status: status)), 304))
+        }
+        panels.append(("about-download", AnyView(AboutView(
+            version: "0.3.8", homebrewAvailable: false, status: .available("0.3.9")
+        )), 304))
+        var aboutHeight: CGFloat?
+        for (name, content, width) in panels {
+            let view = NSHostingView(rootView: content.environmentObject(model)
+                .environment(\.colorScheme, .light)
+                .background(Color(nsColor: .windowBackgroundColor)))
+            XCTAssertEqual(view.fittingSize.width, width, "\(name) must keep its panel width")
+            XCTAssertGreaterThan(view.fittingSize.height, 0)
+            if ["about-unchecked", "about-checking", "about-current", "about-failed"].contains(name) {
+                if let aboutHeight { XCTAssertEqual(view.fittingSize.height, aboutHeight, "Checking and errors must not resize About") }
+                else { aboutHeight = view.fittingSize.height }
+            }
+            if let path = ProcessInfo.processInfo.environment["BETTER_MEETING_PANELS_PREVIEW_PATH"] {
+                view.appearance = NSAppearance(named: .aqua)
+                view.frame = NSRect(origin: .zero, size: view.fittingSize)
+                view.layoutSubtreeIfNeeded()
+                let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+                let output = URL(fileURLWithPath: path).appendingPathComponent("\(name).png")
+                try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: output)
+            }
+        }
+    }
+
+    @MainActor
     func testSearchDoesNotResizeMenu() async throws {
         let suite = "BetterMeetingSearchLayout.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

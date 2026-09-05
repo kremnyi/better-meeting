@@ -28,9 +28,7 @@ struct MenuBarControlView: View {
                 .font(.callout)
                 .disabled(model.state != .idle)
                 .popover(isPresented: $captureOptionsPresented, arrowEdge: .top) {
-                    captureOptions
-                        .padding(12)
-                        .frame(width: 304)
+                    CaptureOptionsView()
                 }
 
                 Spacer()
@@ -146,78 +144,6 @@ struct MenuBarControlView: View {
         }
     }
 
-    private var captureOptions: some View {
-        Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
-            GridRow {
-                Text("Display")
-                Picker("Display", selection: $model.selectedDisplayID) {
-                    Text("Main display").tag(UInt32(0))
-                    ForEach(model.displays, id: \.id) { display in
-                        Text(display.name).tag(display.id)
-                    }
-                    if model.selectedDisplayID != 0 && !model.displays.contains(where: { $0.id == model.selectedDisplayID }) {
-                        Text("Unavailable display").tag(model.selectedDisplayID)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-            }
-            GridRow {
-                Text("Microphone")
-                Picker("Microphone", selection: $model.selectedMicrophoneID) {
-                    Text("System default").tag("")
-                    ForEach(model.microphones, id: \.uniqueID) { microphone in
-                        Text(microphone.localizedName).tag(microphone.uniqueID)
-                    }
-                    if !model.selectedMicrophoneID.isEmpty && !model.microphones.contains(where: { $0.uniqueID == model.selectedMicrophoneID }) {
-                        Text("Unavailable microphone").tag(model.selectedMicrophoneID)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-            }
-            GridRow {
-                Text("Resolution")
-                Picker("Resolution", selection: $model.captureResolution) {
-                    ForEach(CaptureResolution.allCases, id: \.self) { resolution in
-                        Text(resolution.label).tag(resolution)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-                .help("Limits the video's longest edge without upscaling")
-            }
-            GridRow {
-                Text("Frame rate")
-                Picker("Frame rate", selection: $model.captureQuality) {
-                    ForEach(CaptureQuality.allCases, id: \.self) { quality in
-                        Text(quality.label).tag(quality)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-                .help("Higher frame rates make motion smoother and use more storage")
-            }
-            TranscriptionOptionsView(
-                language: $model.transcriptionLanguage,
-                candidates: $model.candidateLanguages, hints: $model.transcriptionHints,
-                settings: $model.speechSettings, modelSelectionDisabled: model.modelPreparationTask != nil
-            )
-            .onChange(of: model.speechSettings.model) { model.speechModelChanged() }
-            GridRow {
-                Text("After recording")
-                Toggle("Export bundle", isOn: $model.exportAfterRecording)
-                    .help("After saving the transcript, extract screenshots and screen text into an artifacts folder.")
-            }
-            GridRow {
-                Text("Save to")
-                destinationButton
-            }
-        }
-        .controlSize(.small)
-        .font(.callout)
-    }
-
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             if !model.unfinishedRecordings.isEmpty {
@@ -324,26 +250,6 @@ struct MenuBarControlView: View {
             Button("Re-transcribe…") { retranscribingMeeting = item }
             Button("Export bundle…") { model.exportBundle(item) }
         }
-    }
-
-    private var destinationButton: some View {
-        Button {
-            model.chooseOutputFolder()
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "folder")
-
-                Text(model.outputRoot.lastPathComponent)
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .buttonStyle(.bordered)
-        .help(model.outputRoot.path)
-        .accessibilityLabel("Save recordings to \(model.outputRoot.path)")
-        .accessibilityHint("Choose a different folder")
     }
 
     private var preparingContent: some View {

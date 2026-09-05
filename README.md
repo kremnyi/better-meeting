@@ -65,7 +65,8 @@ While recording, separate microphone and system-audio meters show incoming sound
 An empty meter can mean silence; check the selected input if it stays empty while
 you expect sound.
 
-Options also include **Resolution** and **Frame rate**, defaulting to
+Options groups settings under **Recording**, **Transcription**, and **Files**.
+**Resolution** and **Frame rate** default to
 1440 px and 10 fps. Resolution limits the video's longest edge to 1280, 1440,
 1920, or 2560 pixels. It uses Retina pixels, preserves the display's proportions,
 and never upscales smaller displays. Frame rate sets a maximum of 5, 10, or
@@ -77,11 +78,11 @@ Small uses less memory; Large v3 takes longer and uses more memory. Each model
 is downloaded once and then works offline. Changing models releases the previous
 model before loading the next one. The picker waits for active setup to finish.
 
-**Decoding → Advanced…** exposes temperature, fallback attempts and temperature
-increase, no-speech and log-probability thresholds, and the repetition threshold.
-Defaults match the existing transcription behavior. Reset restores decoding
-defaults without changing the selected model. Model and decoding settings are
-saved with each transcript; retries reuse them and changed settings invalidate
+**Transcription → Advanced…** opens decoding settings in the same panel: temperature,
+fallback attempts and temperature increase, no-speech and log-probability thresholds,
+and the repetition threshold. Use the back button to return to Options.
+**Restore Defaults** resets decoding without changing the selected model. Model
+and decoding settings are saved with each transcript; retries reuse them and changed settings invalidate
 cached passes. These are WhisperKit controls, not arbitrary Python Whisper flags.
 
 **Language** defaults to **Auto**, with Ukrainian, Russian, and English as candidates.
@@ -89,7 +90,7 @@ Following the original project's strategy, Auto transcribes the whole recording
 in each candidate language separately, then merges segments by confidence and filters likely silence
 hallucinations. Choose one language for a single pass. The app remembers your choice.
 Three languages require three passes; progress shows the current language and pass.
-Change **Candidates** to match the languages you expect. Each selected language
+Change **Languages to detect** to match the languages you expect. Each selected language
 adds one pass; at least one is required. Single-language mode supports any language
 listed by WhisperKit.
 
@@ -160,8 +161,8 @@ remains. Typed titles and titles from older folders are preserved.
 
 Right-click a finished meeting and choose **Export bundle…**. The app reads the
 saved video, extracts screenshots and screen text, and opens `artifacts/` in Finder.
-Enable **Options → After recording → Export bundle** to run this after each
-transcript is saved. Automatic export is off by default.
+Enable **Options → Files → Include screenshots and screen text** to run this
+after each transcript is saved. Automatic export is off by default.
 
 Screen extraction samples every two seconds, keeps screen changes and a frame
 at least every 90 seconds, and recognizes text with Apple's Vision framework.
