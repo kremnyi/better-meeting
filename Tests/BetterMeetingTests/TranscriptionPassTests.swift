@@ -98,7 +98,7 @@ final class TranscriptionPassTests: XCTestCase {
     }
 
     func testPinnedDecodingAndNoSpeechProbability() throws {
-        let options = TranscriptionPasses.options(language: "uk")
+        let options = SpeechSettings().decodingOptions(language: "uk")
         XCTAssertEqual(options.language, "uk")
         XCTAssertFalse(options.detectLanguage)
         XCTAssertTrue(options.skipSpecialTokens)

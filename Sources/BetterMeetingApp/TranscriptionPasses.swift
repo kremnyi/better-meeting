@@ -54,10 +54,6 @@ enum TranscriptionPasses {
         let segments: [ScoredSegment]
     }
 
-    static func options(language: String) -> DecodingOptions {
-        SpeechSettings().decodingOptions(language: language)
-    }
-
     static func run(
         audioURL: URL, languages: [String], hints: String = "",
         settings: SpeechSettings = SpeechSettings(),
