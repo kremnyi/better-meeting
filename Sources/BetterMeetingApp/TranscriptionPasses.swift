@@ -29,7 +29,7 @@ struct TranscriptionLanguage: RawRepresentable, Hashable {
         .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
 
     var label: String {
-        self == .auto ? "Auto" : (Locale.current.localizedString(forLanguageCode: rawValue) ?? rawValue).capitalized
+        self == .auto ? "Automatic" : (Locale.current.localizedString(forLanguageCode: rawValue) ?? rawValue).capitalized
     }
 
     static func candidates(from saved: [String]) -> [String] {

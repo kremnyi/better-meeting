@@ -294,9 +294,9 @@ enum CaptureQuality: Int, CaseIterable {
     // ponytail: use frame rate presets; custom bitrate needs a different recording pipeline.
     var label: String {
         switch self {
-        case .compact: "5 fps · Compact"
-        case .standard: "10 fps · Standard"
-        case .smooth: "30 fps · Smooth"
+        case .compact: "Compact · 5 fps"
+        case .standard: "Standard · 10 fps"
+        case .smooth: "Smooth · 30 fps"
         }
     }
 }

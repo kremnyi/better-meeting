@@ -79,39 +79,40 @@ or dismiss the error. Search, Finder, and **Copy Transcript** remain available d
 transcription and export; renaming and starting another job wait until processing finishes.
 
 Options groups settings under **Recording**, **Transcription**, and **Files**.
-**Resolution** and **Frame rate** default to
+Expand **Video settings** to change **Resolution** and **Frame rate**. The collapsed
+row shows the current values, which default to
 1440 px and 10 fps. Resolution limits the video's longest edge to 1280, 1440,
 1920, or 2560 pixels. It uses Retina pixels, preserves the display's proportions,
 and never upscales smaller displays. Frame rate sets a maximum of 5, 10, or
 30 fps. Higher settings can increase file size and processing load; macOS manages
 compression bitrate. These settings do not affect audio or transcription.
 
-**Model** offers multilingual Small, Large v3 Turbo (default), and Large v3.
+**Advanced transcription → Model** offers multilingual Small, Large v3 Turbo (default), and Large v3.
 Small uses less memory; Large v3 takes longer and uses more memory. Each model
 is downloaded once and then works offline. Changing models releases the previous
 model before loading the next one. The picker waits for active setup to finish.
 
-**Transcription → Advanced…** opens decoding settings in the same panel: temperature,
+**Advanced transcription** opens model, vocabulary, and decoding settings in the same panel. Decoding includes temperature,
 fallback attempts and temperature increase, no-speech and log-probability thresholds,
 and the repetition threshold. Use the back button to return to Options.
-**Restore Defaults** resets decoding without changing the selected model or speaker-label option. Model
+**Reset decoding defaults** resets decoding without changing the selected model, vocabulary, or speaker-label option. Model
 and decoding settings are saved with each transcript; retries reuse them and changed settings invalidate
 cached passes. These are WhisperKit controls, not arbitrary Python Whisper flags.
 
-**Language** defaults to **Auto**, with Ukrainian, Russian, and English as candidates.
-Following the original project's strategy, Auto transcribes the whole recording
+**Language** defaults to **Automatic**, with Ukrainian, Russian, and English as candidates.
+Automatic transcribes the whole recording
 in each candidate language separately, then merges segments by confidence and filters likely silence
 hallucinations. Choose one language for a single pass. The app remembers your choice.
 Three languages require three passes; progress shows the current language and pass.
-Change **Languages to detect** to match the languages you expect. Each selected language
+Change **Languages** to match the languages you expect. Each selected language
 adds one pass; at least one is required. Single-language mode supports any language
 listed by WhisperKit.
 
-Use **Vocabulary** in Options for names, companies, and technical terms separated
+Use **Advanced transcription → Vocabulary** for names, companies, and technical terms separated
 by commas. These optional hints use Whisper's existing prompt support and stay on
 your Mac. The app remembers them; changing hints reruns the affected language passes.
 
-**Speaker labels** in **Options → Transcription** is off by default. When enabled,
+**Label speakers** in **Options → Transcription** is off by default. When enabled,
 SpeakerKit identifies voices locally after transcription and adds **Speaker 1**,
 **Speaker 2**, and so on to the transcript and exported timeline. The first use
 downloads about 11 MB of models; later runs use the saved models offline.
@@ -242,7 +243,7 @@ turbo model `openai_whisper-large-v3-v20240930`; its model files total about 1.6
 Selecting a model requires its download once. Downloaded model files are kept when switching.
 The first load can take longer while Core ML prepares the model.
 
-Speaker models are downloaded only when processing with **Speaker labels** enabled,
+Speaker models are downloaded only when processing with **Label speakers** enabled,
 under `~/Documents/huggingface/models/argmaxinc/speakerkit-coreml/`.
 Speaker detection runs locally and releases its models after each run. Its memory
 use also includes the decoded recording, so longer meetings need more memory.

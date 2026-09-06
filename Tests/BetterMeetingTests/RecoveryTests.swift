@@ -236,9 +236,26 @@ final class RecoveryTests: XCTestCase {
             .appendingPathComponent("Assets/AppIconMaster.png"))
         defer { NSApp.applicationIconImage = previousIcon }
         let model = AppModel(defaults: defaults)
+        let meeting = MeetingHistoryItem(
+            title: "Design review", recordedAt: Date(), duration: 60,
+            folderURL: FileManager.default.temporaryDirectory.appendingPathComponent(suite),
+            needsTranscription: false, titleWasProvided: true
+        )
         var panels: [(String, AnyView, CGFloat, ReleaseCheck.Status)] = [
             ("options", AnyView(CaptureOptionsView()), 360, .unchecked),
-            ("advanced", AnyView(CaptureOptionsView(decodingPresented: true)), 360, .unchecked)
+            ("options-video", AnyView(CaptureOptionsView(videoSettingsExpanded: true)), 360, .unchecked),
+            ("options-enabled", AnyView(CaptureOptionsView()), 360, .unchecked),
+            ("options-single-language", AnyView(CaptureOptionsView()), 360, .unchecked),
+            ("options-many-languages", AnyView(CaptureOptionsView()), 360, .unchecked),
+            ("advanced", AnyView(CaptureOptionsView(advancedPresented: true)), 360, .unchecked),
+            ("retranscribe", AnyView(RetranscriptionView(
+                meeting: meeting, language: .auto, candidates: ["uk", "ru", "en"],
+                hints: "", settings: SpeechSettings(), start: { _, _, _ in }
+            )), 360, .unchecked),
+            ("retranscribe-advanced", AnyView(RetranscriptionView(
+                meeting: meeting, language: .auto, candidates: ["uk", "ru", "en"],
+                hints: "Anna, Approck", settings: SpeechSettings(), advancedPresented: true, start: { _, _, _ in }
+            )), 360, .unchecked)
         ]
         for (name, status): (String, ReleaseCheck.Status) in [
             ("unchecked", .unchecked), ("checking", .checking), ("current", .current),
@@ -258,11 +275,19 @@ final class RecoveryTests: XCTestCase {
         var aboutHeight: CGFloat?
         for (name, content, width, status) in panels {
             model.releaseStatus = status
+            model.speechSettings.speakerLabels = name == "options-enabled"
+            model.exportAfterRecording = name == "options-enabled"
+            model.transcriptionLanguage = name == "options-single-language" ? .uk : .auto
+            model.candidateLanguages = name == "options-many-languages"
+                ? ["uk", "ru", "en", "fr", "de", "es", "pt", "ja"] : ["uk", "ru", "en"]
             let view = NSHostingView(rootView: content.environmentObject(model)
                 .environment(\.colorScheme, .light)
                 .background(Color(nsColor: .windowBackgroundColor)))
             XCTAssertEqual(view.fittingSize.width, width, "\(name) must keep its panel width")
             XCTAssertGreaterThan(view.fittingSize.height, 0)
+            if name == "options" {
+                XCTAssertLessThanOrEqual(view.fittingSize.height, 360, "Everyday options must stay compact")
+            }
             if ["about-unchecked", "about-checking", "about-current", "about-failed"].contains(name) {
                 XCTAssertLessThanOrEqual(view.fittingSize.height, 175, "About must stay compact")
                 if let aboutHeight { XCTAssertEqual(view.fittingSize.height, aboutHeight, "Checking and errors must not resize About") }
