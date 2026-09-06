@@ -9,55 +9,78 @@ struct AboutView: View {
     @State private var updateError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Better Meeting").font(.headline)
-                Text(version.map { "Version \($0)" } ?? "Development build")
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(nsImage: NSApplication.shared.applicationIconImage)
+                    .resizable()
+                    .frame(width: 32, height: 32)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Better Meeting").font(.headline)
+                    HStack(spacing: 6) {
+                        Text(version.map { "Version \($0)" } ?? "Development build")
+                            .textSelection(.enabled)
+                            .layoutPriority(1)
+                        if status != .unchecked {
+                            Text("· \(status.message)")
+                        }
+                    }
+                    .lineLimit(1)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+                    Text(homebrewAvailable ? "Updates via Homebrew" : "Manual updates")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Divider()
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(updateError ?? status.message)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 32, alignment: .topLeading)
-
-                if let newerVersion = status.availableVersion {
-                    if homebrewAvailable {
-                        Button(updating ? "Opening Terminal…" : "Update to \(newerVersion)") {
-                            Task { await updateWithHomebrew() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(updating || model.state != .idle)
-                        Text(model.state == .idle
-                             ? "Uses Homebrew in Terminal. Quits this app and reopens it after updating."
-                             : "Finish recording, transcription, or export before updating.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Link("Download \(newerVersion)", destination: ReleaseCheck.releaseURL)
+                HStack {
+                    if let newerVersion = status.availableVersion {
+                        if homebrewAvailable {
+                            Button(updating ? "Opening Terminal…" : "Update to \(newerVersion)") {
+                                Task { await updateWithHomebrew() }
+                            }
                             .buttonStyle(.borderedProminent)
+                            .disabled(updating || model.state != .idle)
+                        } else {
+                            Link("Download \(newerVersion)", destination: ReleaseCheck.releaseURL)
+                                .buttonStyle(.borderedProminent)
+                        }
+                    } else {
+                        Button(status == .checking ? "Checking…" : status == .failed ? "Try Again" : "Check for Updates") {
+                            Task { await checkForUpdates() }
+                        }
+                        .disabled(status == .checking || version == nil)
                     }
-                } else {
-                    Button(status == .checking ? "Checking…" : status == .failed ? "Try Again" : "Check for Updates") {
-                        Task { await checkForUpdates() }
-                    }
-                    .disabled(status == .checking || version == nil)
+                    Spacer()
+                    Link("Release notes", destination: ReleaseCheck.releaseURL)
+                        .font(.caption)
                 }
+
+                if let updateError {
+                    Text(updateError)
+                        .font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if status.availableVersion != nil && homebrewAvailable {
+                    Text(model.state == .idle
+                         ? "Opens Terminal, quits this app, and reopens it after updating."
+                         : "Finish recording, transcription, or export before updating.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Toggle("Check for updates on launch", isOn: $model.checkUpdatesOnLaunch)
+                    .toggleStyle(.checkbox)
+                    .help("Checks GitHub when Better Meeting opens. Updates are installed only when you choose.")
             }
-
-            Toggle("Check for updates on launch", isOn: $model.checkUpdatesOnLaunch)
-                .toggleStyle(.checkbox)
-                .help("Checks GitHub when Better Meeting opens. Updates are installed only when you choose.")
-
-            Link("Release notes", destination: ReleaseCheck.releaseURL)
         }
         .font(.callout)
         .controlSize(.small)
-        .padding(20)
+        .padding(16)
         .frame(width: 304, alignment: .leading)
     }
 
@@ -96,11 +119,11 @@ enum ReleaseCheck {
 
         var message: String {
             switch self {
-            case .unchecked: "Update checks contact GitHub."
-            case .checking: "Checking GitHub for a newer release…"
-            case .current: "You're up to date."
-            case .available(let version): "Version \(version) is available."
-            case .failed: "Couldn't check for updates. Try again or open the release notes."
+            case .unchecked: ""
+            case .checking: "Checking…"
+            case .current: "Up to date"
+            case .available: "Update available"
+            case .failed: "Check failed"
             }
         }
     }

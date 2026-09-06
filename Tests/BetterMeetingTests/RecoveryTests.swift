@@ -230,6 +230,11 @@ final class RecoveryTests: XCTestCase {
         defaults.set(FileManager.default.temporaryDirectory.appendingPathComponent(suite), forKey: "outputFolder")
         defer { defaults.removePersistentDomain(forName: suite) }
         _ = NSApplication.shared
+        let previousIcon = NSApp.applicationIconImage
+        NSApp.applicationIconImage = NSImage(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Assets/AppIconMaster.png"))
+        defer { NSApp.applicationIconImage = previousIcon }
         let model = AppModel(defaults: defaults)
         var panels: [(String, AnyView, CGFloat, ReleaseCheck.Status)] = [
             ("options", AnyView(CaptureOptionsView()), 360, .unchecked),
@@ -237,13 +242,19 @@ final class RecoveryTests: XCTestCase {
         ]
         for (name, status): (String, ReleaseCheck.Status) in [
             ("unchecked", .unchecked), ("checking", .checking), ("current", .current),
-            ("available", .available("0.3.9")), ("failed", .failed)
+            ("available", .available("0.3.13")), ("failed", .failed)
         ] {
-            panels.append(("about-\(name)", AnyView(AboutView(version: "0.3.8", homebrewAvailable: true)), 304, status))
+            panels.append(("about-\(name)", AnyView(AboutView(version: "0.3.12", homebrewAvailable: true)), 304, status))
         }
         panels.append(("about-download", AnyView(AboutView(
-            version: "0.3.8", homebrewAvailable: false
-        )), 304, .available("0.3.9")))
+            version: "0.3.12", homebrewAvailable: false
+        )), 304, .available("0.3.13")))
+        panels.append(("about-manual", AnyView(AboutView(
+            version: "0.3.12", homebrewAvailable: false
+        )), 304, .unchecked))
+        panels.append(("about-development", AnyView(AboutView(
+            version: nil, homebrewAvailable: false
+        )), 304, .unchecked))
         var aboutHeight: CGFloat?
         for (name, content, width, status) in panels {
             model.releaseStatus = status
@@ -253,6 +264,7 @@ final class RecoveryTests: XCTestCase {
             XCTAssertEqual(view.fittingSize.width, width, "\(name) must keep its panel width")
             XCTAssertGreaterThan(view.fittingSize.height, 0)
             if ["about-unchecked", "about-checking", "about-current", "about-failed"].contains(name) {
+                XCTAssertLessThanOrEqual(view.fittingSize.height, 175, "About must stay compact")
                 if let aboutHeight { XCTAssertEqual(view.fittingSize.height, aboutHeight, "Checking and errors must not resize About") }
                 else { aboutHeight = view.fittingSize.height }
             }

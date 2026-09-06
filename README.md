@@ -28,7 +28,8 @@ macOS blocks the first launch, try opening the app, then use **System Settings
 Managed Macs may not allow this exception.
 
 Click the **ⓘ** button in the top-right corner to open **About**, with the installed
-version and release notes.
+version, release notes, and update method: **Updates via Homebrew** for a
+Homebrew-managed app, or **Manual updates** for other copies.
 **Check for Updates** contacts GitHub when clicked and reports whether a newer
 release is available. Enable **Check for updates on launch** in About to check once
 each time the app opens. This is off by default; enabling it also checks immediately.
