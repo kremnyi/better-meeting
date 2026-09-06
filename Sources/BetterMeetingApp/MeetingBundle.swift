@@ -130,9 +130,8 @@ enum MeetingBundle {
             let lines = screen.added.map { "> " + $0 }.joined(separator: "\n")
             entries.append((screen.time, "Screen:\(link)\n" + (lines.isEmpty ? "> No new text recognized." : lines)))
         }
-        let lines = entries.enumerated().sorted {
-            $0.element.time == $1.element.time ? $0.offset < $1.offset : $0.element.time < $1.element.time
-        }.map { "[\(Timecode.string($0.element.time))] \($0.element.text)" }
+        let lines = entries.sorted { $0.time < $1.time }
+            .map { "[\(Timecode.string($0.time))] \($0.text)" }
         return (["# Meeting timeline", "", "Screen entries contain newly recognized text. Gaps are inferred from transcript timestamps.", ""] + lines).joined(separator: "\n\n") + "\n"
     }
 }

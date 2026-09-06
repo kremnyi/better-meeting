@@ -19,6 +19,13 @@ final class MeetingBundleTests: XCTestCase {
         let screen = timeline.range(of: "Screen:")!.lowerBound
         let ukrainian = timeline.range(of: "Вітаю")!.lowerBound
         XCTAssertTrue(gap < screen && screen < ukrainian)
+
+        let tied = MeetingBundle.timeline(
+            segments: [segments[0], TranscriptSegment(start: 0, end: 5, text: "Second", language: "en")],
+            screens: [ScreenEvent(time: 0, added: ["Same time"])]
+        )
+        XCTAssertLessThan(tied.range(of: "Hello")!.lowerBound, tied.range(of: "Second")!.lowerBound)
+        XCTAssertLessThan(tied.range(of: "Second")!.lowerBound, tied.range(of: "Screen:")!.lowerBound)
     }
 
     func testPortableBundleReplacementAndFailurePreserveMeeting() async throws {

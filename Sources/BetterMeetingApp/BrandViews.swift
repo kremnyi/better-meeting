@@ -52,22 +52,23 @@ struct MenuBarStatusIcon: View {
     let state: AppState
     var processingFrame = 0
 
-    @ViewBuilder
     var body: some View {
-        if state == .processing {
-            Image(nsImage: BrandAssets.processingMenuBarFrames[processingFrame])
-                .statusIconAccessibility(accessibilityLabel)
-        } else if state == .failed {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .statusIconAccessibility(accessibilityLabel)
-        } else {
-            Image(
-                nsImage: state == .recording
-                    ? BrandAssets.recordingMenuBarIcon(for: colorScheme)
-                    : BrandAssets.menuBarIcon
-            )
-            .statusIconAccessibility(accessibilityLabel)
+        Group {
+            if state == .processing {
+                Image(nsImage: BrandAssets.processingMenuBarFrames[processingFrame])
+            } else if state == .failed {
+                Image(systemName: "exclamationmark.triangle.fill")
+            } else {
+                Image(
+                    nsImage: state == .recording
+                        ? BrandAssets.recordingMenuBarIcon(for: colorScheme)
+                        : BrandAssets.menuBarIcon
+                )
+            }
         }
+        .frame(width: 18, height: 18)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
     }
 
     private var accessibilityLabel: String {
@@ -78,14 +79,6 @@ struct MenuBarStatusIcon: View {
         case .processing: "Better Meeting, processing recording"
         case .failed: "Better Meeting, needs attention"
         }
-    }
-}
-
-private extension View {
-    func statusIconAccessibility(_ label: String) -> some View {
-        frame(width: 18, height: 18)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(label)
     }
 }
 

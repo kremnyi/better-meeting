@@ -42,16 +42,11 @@ cp "$sparkle_dir/LICENSE" "$app_dir/Contents/Resources/Sparkle-LICENSE.txt"
 
 rm -rf "$iconset_dir"
 mkdir -p "$iconset_dir"
-sips -z 16 16 "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_16x16.png" >/dev/null
-sips -z 32 32 "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_16x16@2x.png" >/dev/null
-sips -z 32 32 "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_32x32.png" >/dev/null
-sips -z 64 64 "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_32x32@2x.png" >/dev/null
-sips -z 128 128 "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_128x128.png" >/dev/null
-sips -z 256 256 "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_128x128@2x.png" >/dev/null
-sips -z 256 256 "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_256x256.png" >/dev/null
-sips -z 512 512 "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_256x256@2x.png" >/dev/null
-sips -z 512 512 "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_512x512.png" >/dev/null
-sips -z 1024 1024 "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_512x512@2x.png" >/dev/null
+for icon_size in 16 32 128 256 512; do
+    sips -z "$icon_size" "$icon_size" "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_${icon_size}x${icon_size}.png" >/dev/null
+    retina_size=$((icon_size * 2))
+    sips -z "$retina_size" "$retina_size" "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_${icon_size}x${icon_size}@2x.png" >/dev/null
+done
 iconutil -c icns "$iconset_dir" -o "$app_dir/Contents/Resources/BetterMeeting.icns"
 
 sips -z 18 18 "$package_dir/Assets/MenuBarIconTemplate.png" \
