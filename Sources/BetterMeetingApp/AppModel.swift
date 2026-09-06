@@ -407,16 +407,19 @@ final class AppModel: ObservableObject {
         refreshHistory()
     }
 
-    func terminationReply() -> NSApplication.TerminateReply {
+    func terminationReply(
+        confirm: (NSAlert) -> NSApplication.ModalResponse = { $0.runModal() }
+    ) -> NSApplication.TerminateReply {
         guard state == .recording || state == .processing || state == .preparing else {
             return .terminateNow
         }
+        quitWhenFinished = false
         let alert = NSAlert()
         if state == .preparing {
             alert.messageText = "Setup is still running"
             alert.informativeText = "Wait for setup to finish before quitting."
             alert.addButton(withTitle: "Keep open")
-            alert.runModal()
+            _ = confirm(alert)
             return .terminateCancel
         }
         alert.messageText = state == .recording ? "Finish this recording and quit?" : "Quit when transcription finishes?"
@@ -426,14 +429,15 @@ final class AppModel: ObservableObject {
             : "Better Meeting will stay open until the recording and transcript are saved."
         alert.addButton(withTitle: state == .recording ? "Finish and quit" : "Wait and quit")
         alert.addButton(withTitle: "Keep open")
-        guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
+        guard confirm(alert) == .alertFirstButtonReturn else { return .terminateCancel }
         // Processing may finish while the native confirmation is open.
         guard state == .recording || state == .processing else {
             return state == .idle ? .terminateNow : .terminateCancel
         }
         quitWhenFinished = true
         if state == .recording { stopRecording() }
-        return .terminateLater
+        // terminateLater keeps AppKit in a modal loop and stalls menu-bar updates.
+        return .terminateCancel
     }
 
     func setOutputFolder(_ url: URL) {
@@ -442,10 +446,10 @@ final class AppModel: ObservableObject {
         refreshHistory()
     }
 
-    private func completeTermination(_ success: Bool) {
+    func completeTermination(_ success: Bool, terminate: () -> Void = { NSApp.terminate(nil) }) {
         if quitWhenFinished {
             quitWhenFinished = false
-            NSApp.reply(toApplicationShouldTerminate: success)
+            if success { terminate() }
         }
     }
 

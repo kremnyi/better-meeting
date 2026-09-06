@@ -148,6 +148,50 @@ final class RecoveryTests: XCTestCase {
     }
 
     @MainActor
+    func testQuitAfterProcessingKeepsTheNormalEventLoop() async throws {
+        _ = NSApplication.shared
+        let suite = "BetterMeetingQuit.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defaults.set(root, forKey: "outputFolder")
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let folder = try MeetingArtifacts.createDirectory(in: root, title: "Quit check", recordedAt: Date())
+        try Data([1]).write(to: folder.appendingPathComponent("audio.m4a"))
+        let model = AppModel(defaults: defaults)
+        model.retryTranscription(try XCTUnwrap(model.unfinishedRecordings.first))
+        let processing = try XCTUnwrap(model.processingTask)
+        XCTAssertEqual(model.state, .processing)
+
+        var exits = 0
+        let finish: (NSAlert) -> NSApplication.ModalResponse = { _ in .alertFirstButtonReturn }
+        XCTAssertEqual(model.terminationReply(confirm: finish), .terminateCancel,
+                       "Finishing work must keep the normal event loop instead of entering AppKit's modal shutdown loop")
+        model.completeTermination(true) { exits += 1 }
+        model.completeTermination(true) { exits += 1 }
+        XCTAssertEqual(exits, 1, "Successful completion requests quit only once")
+
+        XCTAssertEqual(model.terminationReply(confirm: finish), .terminateCancel)
+        model.completeTermination(false) { XCTFail("Failure must keep the app open") }
+        model.completeTermination(true) { XCTFail("Failure must clear the pending quit") }
+
+        XCTAssertEqual(model.terminationReply(confirm: finish), .terminateCancel)
+        XCTAssertEqual(model.terminationReply(confirm: { _ in
+            model.completeTermination(true) { XCTFail("Completion must not quit while reconsidering the request") }
+            return .alertSecondButtonReturn
+        }), .terminateCancel)
+        model.completeTermination(true) { XCTFail("Keep open must cancel the earlier quit request") }
+
+        XCTAssertEqual(model.terminationReply(confirm: finish), .terminateCancel)
+        model.cancelTranscription()
+        await processing.value
+        XCTAssertEqual(model.state, .idle)
+        model.completeTermination(true) { XCTFail("Cancelling processing must clear the pending quit") }
+    }
+
+    @MainActor
     func testProcessingIconFramesAreDistinctTemplateImages() throws {
         let frames = BrandAssets.processingMenuBarFrames
         XCTAssertGreaterThan(frames.count, 1)
