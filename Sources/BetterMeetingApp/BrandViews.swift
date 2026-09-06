@@ -38,7 +38,8 @@ enum BrandAssets {
             NSGraphicsContext.restoreGraphicsState()
 
             NSColor.systemRed.setFill()
-            NSBezierPath(ovalIn: NSRect(x: 12, y: 12, width: 6, height: 6)).fill()
+            // Tint the artwork's lower-right dot while preserving its alpha mask.
+            NSRect(x: 13, y: 0, width: 5, height: 5).fill(using: .sourceAtop)
             return true
         }
         image.isTemplate = false

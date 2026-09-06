@@ -160,6 +160,50 @@ final class RecoveryTests: XCTestCase {
     }
 
     @MainActor
+    func testRecordingColorsOnlyTheExistingDot() throws {
+        let asset = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Assets/MenuBarIconTemplate.png")
+        let source = try XCTUnwrap(NSImage(contentsOf: asset))
+        source.setName("MenuBarIconTemplate")
+        defer { source.setName(nil) }
+        let baseline = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+            source.draw(in: rect)
+            return true
+        }
+        let original = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(baseline.tiffRepresentation)))
+        for scheme: ColorScheme in [.light, .dark] {
+            let image = BrandAssets.recordingMenuBarIcon(for: scheme)
+            XCTAssertFalse(image.isTemplate)
+            let bitmap = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(image.tiffRepresentation)))
+            XCTAssertEqual(bitmap.pixelsWide, original.pixelsWide)
+            XCTAssertEqual(bitmap.pixelsHigh, original.pixelsHigh)
+            var redPixels = 0
+            for y in 0..<bitmap.pixelsHigh {
+                for x in 0..<bitmap.pixelsWide {
+                    let color = try XCTUnwrap(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+                    let alpha = try XCTUnwrap(original.colorAt(x: x, y: y)).alphaComponent
+                    XCTAssertEqual(color.alphaComponent, alpha, accuracy: 0.01, "Recording must preserve the artwork's shape")
+                    guard color.alphaComponent > 0.1 else { continue }
+                    if color.redComponent > color.greenComponent + 0.2 {
+                        redPixels += 1
+                        XCTAssertGreaterThan(Double(x) / Double(bitmap.pixelsWide), 0.7)
+                        XCTAssertGreaterThan(Double(y) / Double(bitmap.pixelsHigh), 0.7)
+                    } else {
+                        XCTAssertEqual(color.redComponent, scheme == .dark ? 1 : 0, accuracy: 0.01)
+                    }
+                }
+            }
+            XCTAssertGreaterThan(redPixels, 0, "The existing lower-right dot must turn red")
+            if let path = ProcessInfo.processInfo.environment["BETTER_MEETING_PANELS_PREVIEW_PATH"] {
+                let output = URL(fileURLWithPath: path).appendingPathComponent("recording-icon-\(scheme).png")
+                try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: output)
+            }
+        }
+    }
+
+    @MainActor
     func testHistoryRemainsSearchableDuringProcessingAndCancellationShowsRecovery() async throws {
         let suite = "BetterMeetingProcessing.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
