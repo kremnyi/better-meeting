@@ -15,6 +15,7 @@ let package = Package(
             url: "https://github.com/argmaxinc/argmax-oss-swift.git",
             from: "1.0.0"
         ),
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.6"),
     ],
     targets: [
         .executableTarget(
@@ -22,8 +23,10 @@ let package = Package(
             dependencies: [
                 .product(name: "WhisperKit", package: "argmax-oss-swift"),
                 .product(name: "SpeakerKit", package: "argmax-oss-swift"),
+                .product(name: "Sparkle", package: "Sparkle"),
             ],
-            path: "Sources/BetterMeetingApp"
+            path: "Sources/BetterMeetingApp",
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         .testTarget(name: "BetterMeetingTests", dependencies: ["BetterMeetingApp"]),
     ],

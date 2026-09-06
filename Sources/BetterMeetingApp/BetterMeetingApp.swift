@@ -17,15 +17,17 @@ struct BetterMeetingApp: App {
         MenuBarExtra {
             MenuBarControlView()
                 .environmentObject(model)
+                .environmentObject(model.updates)
                 .onAppear { appDelegate.model = model }
         } label: {
             MenuBarStatusIcon(state: model.state, processingFrame: processingFrame)
         }
         .menuBarExtraStyle(.window)
-        .onChange(of: model.checkUpdatesOnLaunch, initial: true) { _, enabled in
-            if enabled {
-                Task { await model.checkForUpdates(automatically: true) }
-            }
+        .onChange(of: model.automaticUpdateChecks, initial: true) { _, enabled in
+            model.updates.start(automaticChecks: enabled)
+        }
+        .onChange(of: model.state) {
+            model.updates.resumePendingInstallation()
         }
         .onChange(of: model.state == .processing && !reduceMotion, initial: true) { _, animate in
             iconTimer?.invalidate()

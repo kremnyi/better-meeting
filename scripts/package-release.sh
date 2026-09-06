@@ -20,3 +20,12 @@ ditto -c -k --sequesterRsrc --keepParent "$app_dir" "dist/$archive"
 cd dist
 shasum -a 256 "$archive" > "$archive.sha256"
 cat "$archive.sha256"
+cd ..
+feed_dir="$PWD/.build/sparkle-release/$version"
+mkdir -p "$feed_dir"
+ln -f "dist/$archive" "$feed_dir/$archive"
+.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
+    --account com.kremnyi.bettermeeting --maximum-deltas 0 --maximum-versions 1 \
+    --download-url-prefix "https://github.com/kremnyi/better-meeting/releases/download/v$version/" \
+    --link "https://github.com/kremnyi/better-meeting/releases/tag/v$version" \
+    -o appcast.xml "$feed_dir"

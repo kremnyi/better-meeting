@@ -180,7 +180,7 @@ final class RecoveryTests: XCTestCase {
         model.retryTranscription(item)
         let processing = try XCTUnwrap(model.processingTask)
         XCTAssertEqual(model.state, .processing)
-        let view = NSHostingView(rootView: MenuBarControlView().environmentObject(model)
+        let view = NSHostingView(rootView: MenuBarControlView().environmentObject(model).environmentObject(model.updates)
             .environment(\.colorScheme, .light).background(Color(nsColor: .windowBackgroundColor)))
         view.frame = NSRect(origin: .zero, size: view.fittingSize)
         view.layoutSubtreeIfNeeded()
@@ -215,9 +215,9 @@ final class RecoveryTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         _ = NSApplication.shared
         let model = AppModel(defaults: defaults)
-        let closed = NSHostingView(rootView: MenuBarControlView().environmentObject(model))
-        let presented = NSHostingView(rootView: MenuBarControlView(captureOptionsPresented: true).environmentObject(model))
-        let about = NSHostingView(rootView: MenuBarControlView(aboutPresented: true).environmentObject(model))
+        let closed = NSHostingView(rootView: MenuBarControlView().environmentObject(model).environmentObject(model.updates))
+        let presented = NSHostingView(rootView: MenuBarControlView(captureOptionsPresented: true).environmentObject(model).environmentObject(model.updates))
+        let about = NSHostingView(rootView: MenuBarControlView(aboutPresented: true).environmentObject(model).environmentObject(model.updates))
         XCTAssertGreaterThan(closed.fittingSize.height, 0)
         XCTAssertEqual(presented.fittingSize, closed.fittingSize)
         XCTAssertEqual(about.fittingSize, closed.fittingSize)
@@ -241,7 +241,7 @@ final class RecoveryTests: XCTestCase {
             folderURL: FileManager.default.temporaryDirectory.appendingPathComponent(suite),
             needsTranscription: false, titleWasProvided: true
         )
-        var panels: [(String, AnyView, CGFloat, ReleaseCheck.Status)] = [
+        var panels: [(String, AnyView, CGFloat, AppUpdater.Status)] = [
             ("options", AnyView(CaptureOptionsView()), 360, .unchecked),
             ("options-video", AnyView(CaptureOptionsView(videoSettingsExpanded: true)), 360, .unchecked),
             ("options-enabled", AnyView(CaptureOptionsView()), 360, .unchecked),
@@ -257,30 +257,25 @@ final class RecoveryTests: XCTestCase {
                 hints: "Anna, Approck", settings: SpeechSettings(), advancedPresented: true, start: { _, _, _ in }
             )), 360, .unchecked)
         ]
-        for (name, status): (String, ReleaseCheck.Status) in [
+        for (name, status): (String, AppUpdater.Status) in [
             ("unchecked", .unchecked), ("checking", .checking), ("current", .current),
             ("available", .available("0.3.13")), ("failed", .failed)
         ] {
-            panels.append(("about-\(name)", AnyView(AboutView(version: "0.3.12", homebrewAvailable: true)), 304, status))
+            panels.append(("about-\(name)", AnyView(AboutView(version: "0.3.12")), 304, status))
         }
-        panels.append(("about-download", AnyView(AboutView(
-            version: "0.3.12", homebrewAvailable: false
-        )), 304, .available("0.3.13")))
-        panels.append(("about-manual", AnyView(AboutView(
-            version: "0.3.12", homebrewAvailable: false
-        )), 304, .unchecked))
         panels.append(("about-development", AnyView(AboutView(
-            version: nil, homebrewAvailable: false
+            version: nil
         )), 304, .unchecked))
         var aboutHeight: CGFloat?
         for (name, content, width, status) in panels {
-            model.releaseStatus = status
+            model.updates.canCheckForUpdates = status != .checking
+            model.updates.status = status
             model.speechSettings.speakerLabels = name == "options-enabled"
             model.exportAfterRecording = name == "options-enabled"
             model.transcriptionLanguage = name == "options-single-language" ? .uk : .auto
             model.candidateLanguages = name == "options-many-languages"
                 ? ["uk", "ru", "en", "fr", "de", "es", "pt", "ja"] : ["uk", "ru", "en"]
-            let view = NSHostingView(rootView: content.environmentObject(model)
+            let view = NSHostingView(rootView: content.environmentObject(model).environmentObject(model.updates)
                 .environment(\.colorScheme, .light)
                 .background(Color(nsColor: .windowBackgroundColor)))
             XCTAssertEqual(view.fittingSize.width, width, "\(name) must keep its panel width")
@@ -318,10 +313,10 @@ final class RecoveryTests: XCTestCase {
         _ = NSApplication.shared
         let model = AppModel(defaults: defaults)
         func size() -> NSSize {
-            NSHostingView(rootView: MenuBarControlView().environmentObject(model)).fittingSize
+            NSHostingView(rootView: MenuBarControlView().environmentObject(model).environmentObject(model.updates)).fittingSize
         }
         let initial = size()
-        let menu = NSHostingView(rootView: MenuBarControlView().environmentObject(model))
+        let menu = NSHostingView(rootView: MenuBarControlView().environmentObject(model).environmentObject(model.updates))
         menu.frame = NSRect(origin: .zero, size: initial)
         menu.layoutSubtreeIfNeeded()
         func searchField(in view: NSView) -> NSSearchField? {
@@ -386,13 +381,13 @@ final class RecoveryTests: XCTestCase {
         _ = NSApplication.shared
         let model = AppModel(defaults: defaults)
         let view = NSHostingView(rootView: MenuBarControlView()
-            .environmentObject(model)
+            .environmentObject(model).environmentObject(model.updates)
             .environment(\.colorScheme, .light)
             .background(Color(nsColor: .windowBackgroundColor)))
         try writePreview(view, to: URL(fileURLWithPath: path))
         if let panels = ProcessInfo.processInfo.environment["BETTER_MEETING_PANELS_PREVIEW_PATH"] {
             let initialSize = view.fittingSize
-            model.releaseStatus = .available("0.3.12")
+            model.updates.status = .available("0.3.12")
             let updated = NSHostingView(rootView: view.rootView)
             XCTAssertEqual(updated.fittingSize.width, initialSize.width)
             XCTAssertGreaterThan(updated.fittingSize.height, initialSize.height, "A confirmed update must add its notice")

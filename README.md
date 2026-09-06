@@ -28,19 +28,19 @@ macOS blocks the first launch, try opening the app, then use **System Settings
 Managed Macs may not allow this exception.
 
 Click the **ⓘ** button in the top-right corner to open **About**, with the installed
-version, release notes, and update method: **Updates via Homebrew** for a
-Homebrew-managed app, or **Manual updates** for other copies.
-**Check for Updates** contacts GitHub when clicked and reports whether a newer
-release is available. Enable **Check for updates on launch** in About to check once
-each time the app opens. This is off by default; enabling it also checks immediately.
-A newer release adds an **Update available** row to the main menu. Click it to
-review the update in About. Startup checks stay quiet if no update is found or
-GitHub cannot be reached. The app never installs an update automatically.
+version, release notes, and **Check for Updates**. Sparkle checks GitHub and lets
+you download and install a newer release without opening Terminal. Updates are
+verified with a separate signing key before extraction.
 
-When a newer release is found, **Update to [version]** appears for apps
-installed with Homebrew at `/opt/homebrew`. It opens Terminal, quits the app,
-and reopens it after a successful update. Finish any recording, transcription,
-or export first. ZIP installations get a **Download [version]** link instead.
+Enable **Check for updates automatically** to check periodically in the background.
+This is off by default and preserves your previous update-check preference. A newer
+release adds an **Update available** row to the main menu; click it, then **View Update**.
+Background checks stay quiet when no update is found or GitHub cannot be reached.
+Downloads and installation require your choice. Installation waits for active
+recording or processing to finish.
+
+Versions 0.3.14 and older need one Homebrew or manual update to get Sparkle.
+Homebrew remains available for installation and updates.
 
 To update with Homebrew, finish any active recording, quit the app, and run:
 

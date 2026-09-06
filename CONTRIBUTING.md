@@ -80,7 +80,7 @@ BETTER_MEETING_PREVIEW_PATH="$PWD/docs/menu-bar.png" swift test --filter testRen
 - Keep changes and commits focused; include a regression check for a bug fix.
 - Run the tests and app-bundle build above. Check permission changes in the signed app.
 
-## Publish a Homebrew release
+## Publish a release
 
 This repository is also the tap. `Casks/better-meeting.rb` points to a versioned
 GitHub release. Releases use the **Better Meeting Release Signing** self-signed
@@ -92,22 +92,34 @@ Keep an encrypted backup of this identity using Keychain Access, outside the
 repository. Recreating the certificate changes the app's identity and requires
 users to grant permissions again. Do not commit or upload the private key.
 
+Sparkle uses a separate Ed25519 key under the Keychain account
+`com.kremnyi.bettermeeting`. `SUPublicEDKey` in `App/Info.plist` contains its public
+key. Keep the existing private key backed up securely; never commit or upload it.
+The app-signing certificate and Sparkle key serve different purposes and both are
+required to publish. Run Sparkle's `generate_keys --account com.kremnyi.bettermeeting`
+to inspect the public key; do not replace the existing key when setting up releases.
+
 1. Update `CFBundleShortVersionString` and increment `CFBundleVersion` in `App/Info.plist`.
 2. Run `swift test`, then `./scripts/package-release.sh`. This creates a
-   self-signed ZIP and `.sha256` file in `dist/`.
+   self-signed ZIP and `.sha256` file in `dist/`, then signs the archive for
+   Sparkle and generates `appcast.xml`. The feed contains the latest full update;
+   no delta archives or separate hosting are needed.
 3. Set the cask's `version` and `sha256` to match that archive. Run
-   `ruby -c Casks/better-meeting.rb` and commit the release changes together.
+   `ruby -c Casks/better-meeting.rb` and commit the version, cask, and feed together.
 4. Tag that commit as `v<version>` and push the tag. Wait for GitHub Actions
    to pass the tests and app-bundle build.
 5. Publish the matching GitHub release with the ZIP and checksum from step 2,
    then push the commit to `main`. The download must be available before the
-   updated cask reaches Homebrew.
+   updated cask and Sparkle feed reach users.
 6. Run `brew update`, then
    `brew fetch --cask kremnyi/better-meeting/better-meeting` to verify the public
-   download and its checksum.
+   download and its checksum. Check that the public `appcast.xml` points to the
+   same archive. When changing the updater or signing, also test installation
+   between two signed bundles and rejection of a modified archive.
 
-Keep the exact archive used for the checksum; rebuilding can change it. Never
-replace a published version's archive. Publish a new version instead.
+Keep the exact archive used for the checksum and Sparkle signature; rebuilding
+can change it. Never replace a published version's archive. Publish a new version
+instead. `auto_updates true` in the cask identifies the built-in updater.
 
 Release notes must explain self-signing, first-launch approval, and the permission
 reset when upgrading from 0.3.4 or older. Keep checksum verification and platform

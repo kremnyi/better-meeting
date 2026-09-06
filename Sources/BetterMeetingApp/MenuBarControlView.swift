@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MenuBarControlView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var updates: AppUpdater
     @State var captureOptionsPresented = false
     @State var aboutPresented = false
     @State private var retranscribingMeeting: MeetingHistoryItem?
@@ -13,7 +14,7 @@ struct MenuBarControlView: View {
 
             Divider()
 
-            if let version = model.releaseStatus.availableVersion {
+            if let version = updates.status.availableVersion {
                 Button {
                     aboutPresented = true
                 } label: {

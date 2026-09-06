@@ -7,6 +7,8 @@ cask "better-meeting" do
   desc "Record meetings from the menu bar and transcribe them locally"
   homepage "https://github.com/kremnyi/better-meeting"
 
+  auto_updates true
+
   depends_on arch: :arm64
   depends_on macos: :sequoia
 

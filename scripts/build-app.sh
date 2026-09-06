@@ -30,6 +30,16 @@ mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
 cp "$package_dir/App/Info.plist" "$app_dir/Contents/Info.plist"
 cp "$build_dir/release/BetterMeeting" "$app_dir/Contents/MacOS/BetterMeeting"
 
+sparkle_dir="$build_dir/artifacts/sparkle/Sparkle"
+sparkle_framework="$app_dir/Contents/Frameworks/Sparkle.framework"
+ditto "$sparkle_dir/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework" "$sparkle_framework"
+# ponytail: this app is not sandboxed; restore Sparkle's XPC services if sandboxing is added.
+rm -rf "$sparkle_framework/Versions/B/XPCServices" "$sparkle_framework/XPCServices"
+for component in "$sparkle_framework/Versions/B/Autoupdate" "$sparkle_framework/Versions/B/Updater.app" "$sparkle_framework"; do
+    codesign --force --options 0 --sign "$signing_identity" "$component"
+done
+cp "$sparkle_dir/LICENSE" "$app_dir/Contents/Resources/Sparkle-LICENSE.txt"
+
 rm -rf "$iconset_dir"
 mkdir -p "$iconset_dir"
 sips -z 16 16 "$package_dir/Assets/AppIconMaster.png" --out "$iconset_dir/icon_16x16.png" >/dev/null
@@ -54,7 +64,7 @@ cp "$package_dir/ThirdPartyNotices.md" "$app_dir/Contents/Resources/ThirdPartyNo
 cp "$build_dir/checkouts/argmax-oss-swift/LICENSE" "$app_dir/Contents/Resources/Argmax-LICENSE.txt"
 cp "$build_dir/checkouts/argmax-oss-swift/NOTICES" "$app_dir/Contents/Resources/Argmax-NOTICES.txt"
 
-codesign --force --deep --sign "$signing_identity" "$app_dir"
+codesign --force --sign "$signing_identity" "$app_dir"
 
 if [[ "$signing_identity" == "-" ]]; then
     echo "Warning: ad-hoc signing changes the app identity after every rebuild; Screen Recording access must then be granted again." >&2
