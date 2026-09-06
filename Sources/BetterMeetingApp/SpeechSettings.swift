@@ -31,6 +31,8 @@ struct SpeechSettings: Codable, Equatable, Sendable {
     var noSpeechThreshold: Float = 0.6
     var logProbThreshold: Float = -1
     var compressionRatioThreshold: Float = 2.4
+    // Optional so preferences and meeting metadata saved before speaker labels still decode.
+    var speakerLabels: Bool? = nil
 
     func validate() throws {
         guard (0...1).contains(temperature), (0...10).contains(fallbackCount),

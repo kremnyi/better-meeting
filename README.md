@@ -93,7 +93,7 @@ model before loading the next one. The picker waits for active setup to finish.
 **Transcription → Advanced…** opens decoding settings in the same panel: temperature,
 fallback attempts and temperature increase, no-speech and log-probability thresholds,
 and the repetition threshold. Use the back button to return to Options.
-**Restore Defaults** resets decoding without changing the selected model. Model
+**Restore Defaults** resets decoding without changing the selected model or speaker-label option. Model
 and decoding settings are saved with each transcript; retries reuse them and changed settings invalidate
 cached passes. These are WhisperKit controls, not arbitrary Python Whisper flags.
 
@@ -109,6 +109,21 @@ listed by WhisperKit.
 Use **Vocabulary** in Options for names, companies, and technical terms separated
 by commas. These optional hints use Whisper's existing prompt support and stay on
 your Mac. The app remembers them; changing hints reruns the affected language passes.
+
+**Speaker labels** in **Options → Transcription** is off by default. When enabled,
+SpeakerKit identifies voices locally after transcription and adds **Speaker 1**,
+**Speaker 2**, and so on to the transcript and exported timeline. The first use
+downloads about 11 MB of models; later runs use the saved models offline.
+This adds processing time. Labels describe voices within this meeting, not real
+names or identities across meetings. Each transcript segment gets the speaker
+with the most overlapping speech; ties and unmatched segments stay unlabeled.
+Fast turn-taking within a segment and overlapping voices can be mislabeled.
+
+The setting is saved with each meeting and is also available in **Re-transcribe…**.
+Changing it reuses matching transcription passes. Speaker turns are cached in
+`speaker_turns.json`; changing the audio or a damaged cache reruns detection.
+If speaker detection fails, the transcript is saved without labels and the menu
+shows the error. Cancellation keeps completed passes for a later retry.
 
 The menu shows the 10 most recent completed meetings. Search finds matching titles
 and saved transcript text across all completed meetings in the selected folder,
@@ -156,7 +171,7 @@ macOS **System Settings → Notifications → Better Meeting**.
 ```
 
 `transcript.md` has timestamps and a link to the video. `transcript.json` stores
-segment times, text, and language tags. `metadata.json` stores the title,
+segment times, text, language tags, and optional speaker IDs. `metadata.json` stores the title,
 recording date, duration, file names, and transcription status.
 
 For unnamed meetings, Apple's `NaturalLanguage` framework looks for a person,
@@ -226,6 +241,11 @@ turbo model `openai_whisper-large-v3-v20240930`; its model files total about 1.6
 Selecting a model requires its download once. Downloaded model files are kept when switching.
 The first load can take longer while Core ML prepares the model.
 
+Speaker models are downloaded only when processing with **Speaker labels** enabled,
+under `~/Documents/huggingface/models/argmaxinc/speakerkit-coreml/`.
+Speaker detection runs locally and releases its models after each run. Its memory
+use also includes the decoded recording, so longer meetings need more memory.
+
 ## Build from source
 
 Install Xcode 16 or newer, then run:
@@ -247,7 +267,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for tests, signing, and release steps.
 
 - Captures one whole display; window-only and audio-only modes are not available.
 - One recording, transcription, or export runs at a time.
-- Transcripts have timestamps and language tags, but no speaker labels.
+- Speaker labels are optional and may need correction; automatic speaker naming is not available.
 - Whisper can produce text during silence; the no-speech filter does not catch every case.
 - File import, live captions, and meeting summaries are not included.
 - The selected display and microphone must be connected when recording starts.

@@ -19,11 +19,13 @@ enum ProcessingPhase: Equatable {
     case downloadingModel
     case loadingModel
     case transcribing
+    case labelingSpeakers
     case writingFiles
     case extractingScreens
     case exportingBundle
 
     var stepText: String {
+        if self == .labelingSpeakers { return "Speaker labels" }
         if self == .extractingScreens { return "Step 1 of 2" }
         if self == .exportingBundle { return "Step 2 of 2" }
         return "Step \(stepNumber) of 5"
@@ -37,6 +39,7 @@ enum ProcessingPhase: Equatable {
         case .downloadingModel: "Downloading the speech model…"
         case .loadingModel: "Loading the speech model…"
         case .transcribing: "Transcribing on this Mac…"
+        case .labelingSpeakers: "Preparing speaker labels…"
         case .writingFiles: "Writing transcript.md…"
         case .extractingScreens: "Extracting screenshots and screen text…"
         case .exportingBundle: "Writing the export bundle…"
@@ -48,7 +51,7 @@ enum ProcessingPhase: Equatable {
         case .finalizingRecording: 1
         case .preparingAudio: 2
         case .preparingModel, .downloadingModel, .loadingModel: 3
-        case .transcribing: 4
+        case .transcribing, .labelingSpeakers: 4
         case .writingFiles: 5
         case .extractingScreens: 1
         case .exportingBundle: 2
@@ -692,12 +695,34 @@ final class AppModel: ObservableObject {
                 }
                 try Task.checkCancellation()
             }
-            let segments = try await transcriber.transcribe(
+            var segments = try await transcriber.transcribe(
                 audioURL: audioURL, languages: languages, hints: hints, settings: settings
             ) { [weak self] progress in
                 Task { @MainActor [weak self] in
                     self?.updateTranscriptionProgress(progress)
                 }
+            }
+
+            var speakerWarning: String?
+            do {
+                segments = try await SpeakerLabels.run(
+                    audioURL: audioURL, segments: segments, enabled: settings.speakerLabels == true
+                ) {
+                    self.setProcessingPhase(.labelingSpeakers)
+                    return try await SpeakerLabels.detect(
+                        audioURL: audioURL, downloadBase: LocalTranscriber.defaultDownloadBase
+                    ) { [weak self] fraction in
+                        Task { @MainActor [weak self] in
+                            guard let self, self.processingPhase == .labelingSpeakers,
+                                  !self.cancellingTranscription, fraction.isFinite else { return }
+                            self.processingFraction = min(max(fraction, 0), 1)
+                            self.statusText = "Identifying speakers on this Mac…"
+                        }
+                    }
+                }
+            } catch {
+                try Task.checkCancellation()
+                speakerWarning = "Transcript saved without speaker labels: \(error.localizedDescription)"
             }
 
             try Task.checkCancellation()
@@ -739,6 +764,9 @@ final class AppModel: ObservableObject {
                         ? "Transcript saved. Export cancelled; any previous bundle is kept."
                         : "Transcript saved. Export failed: \(error.localizedDescription)"
                 }
+            }
+            if let speakerWarning {
+                completionMessage = [speakerWarning, completionMessage].compactMap { $0 }.joined(separator: "\n")
             }
             await MeetingNotifications.post(
                 title: transcriptionHistory.first(where: { $0.folderURL == folder })?.title ?? folder.lastPathComponent,
@@ -800,7 +828,7 @@ final class AppModel: ObservableObject {
 
     private func updateTranscriptionProgress(_ progress: LocalTranscriptionProgress) {
         guard !cancellingTranscription else { return }
-        guard state == .processing, !isExportingBundle else { return }
+        guard state == .processing, !isExportingBundle, processingPhase != .labelingSpeakers else { return }
 
         switch progress {
         case .preparingModel:

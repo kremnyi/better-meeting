@@ -121,7 +121,8 @@ enum MeetingBundle {
                 entries.append((previousEnd, "Gap between speech segments: \(Int(segment.start - previousEnd)) seconds."))
             }
             let language = segment.language.map { " [\($0)]" } ?? ""
-            entries.append((segment.start, "Speech\(language): \(segment.text)"))
+            let speaker = segment.speakerLabel.map { " (\($0))" } ?? ""
+            entries.append((segment.start, "Speech\(language)\(speaker): \(segment.text)"))
             previousEnd = max(previousEnd ?? 0, segment.end)
         }
         for screen in screens {

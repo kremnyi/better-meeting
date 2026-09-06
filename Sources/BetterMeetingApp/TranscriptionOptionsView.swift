@@ -184,6 +184,14 @@ struct TranscriptionOptionsView: View {
                     .help("Comma-separated names, companies, or technical terms to help Whisper recognize them")
             }
             GridRow {
+                Toggle("Speaker labels", isOn: Binding(
+                    get: { settings.speakerLabels == true },
+                    set: { settings.speakerLabels = $0 }
+                ))
+                .help("Identify speakers locally after transcription. Downloads about 11 MB once and adds processing time. Labels may need correction.")
+                .gridCellColumns(2)
+            }
+            GridRow {
                 Button("Advanced…", action: showAdvanced)
                     .gridCellColumns(2)
             }
@@ -274,8 +282,10 @@ struct DecodingSettingsView: View {
             }
             Button("Restore Defaults") {
                 let model = settings.model
+                let speakerLabels = settings.speakerLabels
                 settings = SpeechSettings()
                 settings.model = model
+                settings.speakerLabels = speakerLabels
             }
         }
         .controlSize(.small)

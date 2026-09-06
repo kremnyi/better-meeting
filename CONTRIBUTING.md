@@ -60,6 +60,13 @@ With the same environment variable, `--filter testTurboSilenceLimitation` record
 the turbo model's known silence hallucination as an expected failure. Keep the
 default confidence thresholds; do not tune them just to pass a silent fixture.
 
+To check actual speaker detection, use disposable speech audio. This downloads
+the SpeakerKit models into `.build/speaker-check` and processes the audio locally:
+
+```bash
+BETTER_MEETING_SPEAKER_CHECK=/path/to/speech.wav swift test --filter testRealSpeakerDetection
+```
+
 To update the README screenshot with fictional meetings:
 
 ```bash

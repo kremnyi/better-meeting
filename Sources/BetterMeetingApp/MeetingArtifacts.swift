@@ -5,6 +5,12 @@ struct TranscriptSegment: Codable, Equatable, Sendable {
     let end: TimeInterval
     let text: String
     let language: String?
+    var speaker: Int? = nil
+
+    var speakerLabel: String? {
+        guard let speaker, speaker >= 0, speaker < Int.max else { return nil }
+        return "Speaker \(speaker + 1)"
+    }
 }
 
 struct MeetingManifest: Codable {
@@ -288,7 +294,8 @@ enum MeetingArtifacts {
         } else {
             lines.append(contentsOf: segments.map { segment in
                 let language = segment.language.map { " [\($0)]" } ?? ""
-                return "[\(Timecode.string(segment.start))]\(language) \(segment.text)"
+                let speaker = segment.speakerLabel.map { " \($0):" } ?? ""
+                return "[\(Timecode.string(segment.start))]\(language)\(speaker) \(segment.text)"
             })
         }
 

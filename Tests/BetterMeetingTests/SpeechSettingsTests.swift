@@ -10,6 +10,7 @@ final class SpeechSettingsTests: XCTestCase {
         try Data([1]).write(to: audio)
         var settings = SpeechSettings()
         for index in 0..<4 {
+            if index == 1 { settings.speakerLabels = true }
             if index == 2 { settings.model = .small }
             if index == 3 { settings.temperature = 0.3; settings.fallbackCount = 2 }
             var ran = false
@@ -57,6 +58,8 @@ final class SpeechSettingsTests: XCTestCase {
         }
         let model = AppModel(defaults: defaults)
         XCTAssertEqual(model.speechSettings.model, .turbo)
+        XCTAssertFalse(model.speechSettings.speakerLabels == true)
+        model.speechSettings.speakerLabels = true
         model.speechSettings.model = .large
         model.speechSettings.noSpeechThreshold = 0.7
         XCTAssertEqual(AppModel(defaults: defaults).speechSettings, model.speechSettings)

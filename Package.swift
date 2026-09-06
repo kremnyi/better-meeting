@@ -21,6 +21,7 @@ let package = Package(
             name: "BetterMeetingApp",
             dependencies: [
                 .product(name: "WhisperKit", package: "argmax-oss-swift"),
+                .product(name: "SpeakerKit", package: "argmax-oss-swift"),
             ],
             path: "Sources/BetterMeetingApp"
         ),
